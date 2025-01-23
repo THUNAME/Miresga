@@ -1,0 +1,12 @@
+[submodule "Switch/control_plane/third_party/cJSON"]
+	path = Switch/control_plane/third_party/cJSON
+	url = git@github.com:DaveGamble/cJSON.git
+[submodule "Frontend/subprojects/third_party/libcuckoo"]
+	path = Frontend/subprojects/third_party/libcuckoo
+	url = git@github.com:efficient/libcuckoo.git
+[submodule "Frontend/subprojects/third_party/json"]
+	path = Frontend/subprojects/third_party/json
+	url = git@github.com:nlohmann/json.git
+[submodule "Frontend/subprojects/third_party/concurrentqueue"]
+	path = Frontend/subprojects/third_party/concurrentqueue
+	url = git@github.com:cameron314/concurrentqueue.git
