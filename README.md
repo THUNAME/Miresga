@@ -1,5 +1,5 @@
-# Miresga
-
+# Miresga 
+[![DOI](https://zenodo.org/badge/861614804.svg)](https://doi.org/10.5281/zenodo.14722667)
 ## I. Introduction
 This repository hosts Miresga, a hybrid and high-performance layer-7 load balancing system. The core idea of Miresga is to improve the performance of L7 load balancing by strategically dividing the task to maximize the use of software and hardware resources and capabilities. Through careful observation, we divide L7 load balancing into three distinct tasks: 1. establishing connections with clients and servers respectively, 2. passing application layer protocols and applying load balancing rules, and 3. subsequent packet forwarding through splicing connections. Miresga uses three components to complete these three tasks: the programmable switch, the front-end server and the back-end agent. The architecture of Miresga is shown below.
 
