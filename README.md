@@ -45,6 +45,13 @@ cd $SDE
 ./p4_build.sh /path/to/Miresga/Switch/data_plane/l7lb_switch.p4
 ```
 #### b. Control plane
+First, compile the cJSON.
+```bash
+cd /path/to/Miresga/Switch/control_plane/third_party/cJSON
+make
+sudo make install
+```
+Then, compile the control_plane.
 ```bash
 cd /path/to/Miresga/Switch/control_plane
 make
@@ -79,4 +86,28 @@ If you want to unload the eBPF program, execute:
 cd /path/to/Miresga/Backend
 sudo su
 sh unload.sh ${iface_name}
+```
+
+## IV. Third-Party Dependencies
+
+This project includes the following third-party libraries as Git submodules:
+
+- **[cJSON](https://github.com/DaveGamble/cJSON)**
+- **[libcuckoo](https://github.com/efficient/libcuckoo)**
+- **[json](https://github.com/nlohmann/json)**
+- **[concurrentqueue](https://github.com/cameron314/concurrentqueue)**
+
+Please refer to the corresponding submodule directory for checking the detailed licenses.
+
+## Citation
+Miresga has been accepted by the Proceedings of the 34th ACM Web Conference (WWW '25). If you use Miresga for your research, please cite our paper:
+```bibtex
+@inproceedings{shi2025miresga,
+  title = {Miresga: Accelerating Layer-7 Load Balancing with Programmable Switches},
+  author = {Xiaoyi Shi and Lin He and Jiasheng Zhou and Yifan Yang and Ying Liu},
+  booktitle = {Proceedings of the 34th ACM Web Conference (WWW '25)},
+  year = {2025},
+  address = {Sydney, NSW, Australia},
+  date = {April 28 – May 2},
+}
 ```
