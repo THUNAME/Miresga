@@ -34,7 +34,7 @@ We have only tested the XDP native mode on Mellanox CX6 NICs and have not tested
 ## III. Quick Start
 First, clone the repository:
 ```bash
-git clone --recurse-submodules https://github.com/Miresga-L7LB/Miresga.git 
+git clone --recurse-submodules https://github.com/THUNAME/Miresga.git 
 git submodule init
 ```
 ### 1. Programmable Switch
