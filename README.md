@@ -11,7 +11,7 @@ This repository hosts Miresga, a hybrid and high-performance layer-7 load balanc
 We have only fully tested our prototype on SDE 9.4.0. While our data plane was successfully compiled on a virtual machine with SDE 9.13.1, the API for the control plane seems to be inconsistent. Therefore, using a higher version may require some modifications to the code.
 
 ### 2. Front-end Server
-We tested on Ubuntu 20.04 with the 5.4.0-196-generic kernel and DPDK-19.11. Using a more recent version of DPDK may also require updating some APIs in the code. Additionally, the following are required to build the project: **cmake**, **meson**, and **ninja**. You can install them by running:
+We tested on Ubuntu 20.04 with the 5.4.0-196-generic kernel and DPDK-24.11. Additionally, the following are required to build the project: **cmake**, **meson**, and **ninja**. You can install them by running:
 ```bash
 sudo apt install build-essential meson ninja cmake
 ```
