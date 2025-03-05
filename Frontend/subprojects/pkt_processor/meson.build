@@ -1,9 +1,9 @@
 project('pkt_processor', 'cpp', version: '1.0.0',
         default_options: [ 'cpp_std=c++17', 'optimization=3', 'warning_level=3'])
 cmake = import('cmake')
-libcuckoo_pro = cmake.subproject('third_party/libcuckoo')
+libcuckoo_pro = cmake.subproject('libcuckoo')
 libcuckoo_dep = libcuckoo_pro.dependency('libcuckoo')
-pkt_processor_inc = include_directories(['.', '../..', '../third_party'])
+pkt_processor_inc = include_directories(['.', '../..', '..'])
 rule_controller_pro = subproject('rule_controller')
 rule_controller_dep = rule_controller_pro.get_variable('rule_controller_dep')
 dpdk_dep = dependency('libdpdk', required: true)
