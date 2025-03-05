@@ -1,6 +1,5 @@
 #include "pkt_processor.hpp"
 
-
 std::vector<uint8_t> pkt_processor_t::crc8_table(256);
 libcuckoo::cuckoohash_map<uint64_t, flow_data_t *> *pkt_processor_t::flow_hash_map = nullptr;
 rte_mempool *pkt_processor_t::mbuf_pool = nullptr;
@@ -410,18 +409,18 @@ status_t pkt_processor_t::forward_inbound_pkt(uint8_t d_index, rte_mbuf* recv_bu
         printf("[ERROR]: Cannot find the backend server.\n");
         return status_t::INTERNAL_ERROR;
     }
-    eth_hdr->s_addr.addr_bytes[0] = 0x0c;
-    eth_hdr->s_addr.addr_bytes[1] = 0x42;
-    eth_hdr->s_addr.addr_bytes[2] = 0xa1;
-    eth_hdr->s_addr.addr_bytes[3] = 0xd1;
-    eth_hdr->s_addr.addr_bytes[4] = 0xd0;
-    eth_hdr->s_addr.addr_bytes[5] = 0xc8;
-    rte_ether_addr_copy(&server_info->mac, &eth_hdr->d_addr);
+    eth_hdr->src_addr.addr_bytes[0] = 0x0c;
+    eth_hdr->src_addr.addr_bytes[1] = 0x42;
+    eth_hdr->src_addr.addr_bytes[2] = 0xa1;
+    eth_hdr->src_addr.addr_bytes[3] = 0xd1;
+    eth_hdr->src_addr.addr_bytes[4] = 0xd0;
+    eth_hdr->src_addr.addr_bytes[5] = 0xc8;
+    rte_ether_addr_copy(&server_info->mac, &eth_hdr->dst_addr);
     ip_hdr->dst_addr = htonl(server_info->ip);
     ip_hdr->hdr_checksum = 0;
     tcp_hdr->dst_port = htons(server_info->port);
     tcp_hdr->cksum = 0;
-    send_buf->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM;
+    send_buf->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM;
     send_buf->l2_len = sizeof(rte_ether_hdr);
     send_buf->l3_len = 20;
     send_buf->l4_len = (tcp_hdr->data_off >> 4) * 4;
@@ -442,18 +441,18 @@ status_t pkt_processor_t::forward_outbound_pkt(rte_mbuf *recv_buf, rte_mbuf *sen
         //printf("[ERROR]: Cannot find the backend server.\n");
         return status_t::INTERNAL_ERROR;
     }
-    eth_hdr->s_addr.addr_bytes[0] = 0x0c;
-    eth_hdr->s_addr.addr_bytes[1] = 0x42;
-    eth_hdr->s_addr.addr_bytes[2] = 0xa1;
-    eth_hdr->s_addr.addr_bytes[3] = 0xd1;
-    eth_hdr->s_addr.addr_bytes[4] = 0xd0;
-    eth_hdr->s_addr.addr_bytes[5] = 0xc8;
-    rte_ether_addr_copy(&server_info->mac, &eth_hdr->d_addr);
+    eth_hdr->src_addr.addr_bytes[0] = 0x0c;
+    eth_hdr->src_addr.addr_bytes[1] = 0x42;
+    eth_hdr->src_addr.addr_bytes[2] = 0xa1;
+    eth_hdr->src_addr.addr_bytes[3] = 0xd1;
+    eth_hdr->src_addr.addr_bytes[4] = 0xd0;
+    eth_hdr->src_addr.addr_bytes[5] = 0xc8;
+    rte_ether_addr_copy(&server_info->mac, &eth_hdr->dst_addr);
     ip_hdr->src_addr = htonl(server_info->ip);
     ip_hdr->hdr_checksum = 0;
     tcp_hdr->src_port = htons(server_info->port);
     tcp_hdr->cksum = 0;
-    send_buf->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM;
+    send_buf->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM;
     send_buf->l2_len = sizeof(rte_ether_hdr);
     send_buf->l3_len = 20;
     send_buf->l4_len = (tcp_hdr->data_off >> 4) * 4;
@@ -470,14 +469,14 @@ status_t pkt_processor_t::reply_rst_pkt(rte_mbuf *recv_buf, rte_mbuf *send_buf) 
     rte_tcp_hdr *tcp_hdr = (rte_tcp_hdr*)(ip_hdr + 1);
     //rte_ether_addr tmp;
     //rte_ether_addr_copy(&eth_hdr->d_addr, &tmp);
-    rte_ether_addr_copy(&eth_hdr->s_addr, &eth_hdr->d_addr);
+    rte_ether_addr_copy(&eth_hdr->src_addr, &eth_hdr->dst_addr);
     //rte_ether_addr_copy(&tmp, &eth_hdr->s_addr);
-    eth_hdr->s_addr.addr_bytes[0] = 0x0c;
-    eth_hdr->s_addr.addr_bytes[1] = 0x42;
-    eth_hdr->s_addr.addr_bytes[2] = 0xa1;
-    eth_hdr->s_addr.addr_bytes[3] = 0xd1;
-    eth_hdr->s_addr.addr_bytes[4] = 0xd0;
-    eth_hdr->s_addr.addr_bytes[5] = 0xc8;
+    eth_hdr->src_addr.addr_bytes[0] = 0x0c;
+    eth_hdr->src_addr.addr_bytes[1] = 0x42;
+    eth_hdr->src_addr.addr_bytes[2] = 0xa1;
+    eth_hdr->src_addr.addr_bytes[3] = 0xd1;
+    eth_hdr->src_addr.addr_bytes[4] = 0xd0;
+    eth_hdr->src_addr.addr_bytes[5] = 0xc8;
     uint32_t tmp_ip = ip_hdr->src_addr;
     ip_hdr->src_addr = ip_hdr->dst_addr;
     ip_hdr->dst_addr = tmp_ip;
@@ -494,7 +493,7 @@ status_t pkt_processor_t::reply_rst_pkt(rte_mbuf *recv_buf, rte_mbuf *send_buf) 
     tcp_hdr->data_off = 5 << 4;
     tcp_hdr->tcp_flags = RTE_TCP_RST_FLAG;
     tcp_hdr->cksum = 0;
-    send_buf->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM;
+    send_buf->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM;
     send_buf->l2_len = sizeof(rte_ether_hdr);
     send_buf->l3_len = 20;
     send_buf->l4_len = 20;
@@ -510,13 +509,13 @@ status_t pkt_processor_t::send_rst_pkt(uint8_t d_index, rte_mbuf *recv_buf, rte_
     rte_ipv4_hdr *ip_hdr = (rte_ipv4_hdr*)(eth_hdr + 1);
     rte_tcp_hdr *tcp_hdr = (rte_tcp_hdr*)(ip_hdr + 1);
     server_info_t *server_info = pkt_processor_t::rule_controller->lookup_backend_server_info(d_index);
-    rte_ether_addr_copy(&server_info->mac, &eth_hdr->d_addr);
-    eth_hdr->s_addr.addr_bytes[0] = 0x0c;
-    eth_hdr->s_addr.addr_bytes[1] = 0x42;
-    eth_hdr->s_addr.addr_bytes[2] = 0xa1;
-    eth_hdr->s_addr.addr_bytes[3] = 0xd1;
-    eth_hdr->s_addr.addr_bytes[4] = 0xd0;
-    eth_hdr->s_addr.addr_bytes[5] = 0xc8;
+    rte_ether_addr_copy(&server_info->mac, &eth_hdr->dst_addr);
+    eth_hdr->src_addr.addr_bytes[0] = 0x0c;
+    eth_hdr->src_addr.addr_bytes[1] = 0x42;
+    eth_hdr->src_addr.addr_bytes[2] = 0xa1;
+    eth_hdr->src_addr.addr_bytes[3] = 0xd1;
+    eth_hdr->src_addr.addr_bytes[4] = 0xd0;
+    eth_hdr->src_addr.addr_bytes[5] = 0xc8;
     ip_hdr->dst_addr = server_info->ip;
     ip_hdr->version_ihl = 5 + (ip_hdr->version_ihl & 0xf0);
     ip_hdr->total_length = htons(40);  
@@ -525,7 +524,7 @@ status_t pkt_processor_t::send_rst_pkt(uint8_t d_index, rte_mbuf *recv_buf, rte_
     tcp_hdr->tcp_flags = RTE_TCP_RST_FLAG;
     tcp_hdr->data_off = 5 << 4;
     tcp_hdr->cksum = 0;
-    send_buf->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM;
+    send_buf->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM;
     send_buf->l2_len = sizeof(rte_ether_hdr);
     send_buf->l3_len = 20;
     send_buf->l4_len = 20;
@@ -538,20 +537,20 @@ status_t pkt_processor_t::send_cached_pkt(uint8_t d_index, char *cached_pkt, rte
     rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(send_buf, rte_ether_hdr*);
     memcpy(eth_hdr, cached_pkt, size);
     server_info_t *server_info = pkt_processor_t::rule_controller->lookup_backend_server_info(d_index);
-    rte_ether_addr_copy(&server_info->mac, &eth_hdr->d_addr);
-    eth_hdr->s_addr.addr_bytes[0] = 0x0c;
-    eth_hdr->s_addr.addr_bytes[1] = 0x42;
-    eth_hdr->s_addr.addr_bytes[2] = 0xa1;
-    eth_hdr->s_addr.addr_bytes[3] = 0xd1;
-    eth_hdr->s_addr.addr_bytes[4] = 0xd0;
-    eth_hdr->s_addr.addr_bytes[5] = 0xc8;
+    rte_ether_addr_copy(&server_info->mac, &eth_hdr->dst_addr);
+    eth_hdr->src_addr.addr_bytes[0] = 0x0c;
+    eth_hdr->src_addr.addr_bytes[1] = 0x42;
+    eth_hdr->src_addr.addr_bytes[2] = 0xa1;
+    eth_hdr->src_addr.addr_bytes[3] = 0xd1;
+    eth_hdr->src_addr.addr_bytes[4] = 0xd0;
+    eth_hdr->src_addr.addr_bytes[5] = 0xc8;
     rte_ipv4_hdr *ip_hdr = (rte_ipv4_hdr*)(eth_hdr + 1);
     ip_hdr->dst_addr = htonl(server_info->ip);
     ip_hdr->hdr_checksum = 0;
     rte_tcp_hdr *tcp_hdr = (rte_tcp_hdr*)(ip_hdr + 1);
     tcp_hdr->dst_port = htons(server_info->port);
     tcp_hdr->cksum = 0;
-    send_buf->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM;
+    send_buf->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM;
     send_buf->l2_len = sizeof(rte_ether_hdr);
     send_buf->l3_len = 20;
     send_buf->l4_len = (tcp_hdr->data_off >> 4) * 4;
@@ -566,7 +565,7 @@ status_t pkt_processor_t::send_syn_pkt(uint8_t d_index, rte_mbuf *recv_buf, rte_
     memcpy(eth_hdr, packet, 52 + sizeof(rte_ether_hdr));
     server_info_t *server_info = pkt_processor_t::rule_controller->lookup_backend_server_info(d_index);
 
-    rte_ether_addr_copy(&server_info->mac, &eth_hdr->d_addr);
+    rte_ether_addr_copy(&server_info->mac, &eth_hdr->dst_addr);
     rte_ipv4_hdr *ip_hdr = (rte_ipv4_hdr*)(eth_hdr + 1);
     ip_hdr->dst_addr = htonl(server_info->ip);
     ip_hdr->version_ihl = 5 + (ip_hdr->version_ihl & 0xf0);
@@ -581,7 +580,7 @@ status_t pkt_processor_t::send_syn_pkt(uint8_t d_index, rte_mbuf *recv_buf, rte_
     tcp_hdr->cksum = 0;
     void *option = (void *)(tcp_hdr + 1);
     memcpy(option, option_char, sizeof(option_char));
-    send_buf->ol_flags |= PKT_TX_IPV4 | PKT_TX_IP_CKSUM | PKT_TX_TCP_CKSUM;
+    send_buf->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM;
     send_buf->l2_len = sizeof(rte_ether_hdr);
     send_buf->l3_len = 20;
     send_buf->l4_len = 32;
@@ -646,10 +645,10 @@ status_t pkt_processor_t::init_static_variable(int argc, char **argv, dpdk_confi
     }
     rte_eth_conf port_conf;
     memset(&port_conf, 0, sizeof(port_conf));
-    port_conf.rxmode.offloads = DEV_RX_OFFLOAD_CHECKSUM;
-    port_conf.txmode.offloads = DEV_TX_OFFLOAD_IPV4_CKSUM | DEV_TX_OFFLOAD_TCP_CKSUM;
-    port_conf.rxmode.mq_mode = ETH_MQ_RX_RSS;
-    port_conf.rx_adv_conf.rss_conf.rss_hf = ETH_RSS_IP| ETH_RSS_TCP;
+    port_conf.rxmode.offloads = RTE_ETH_RX_OFFLOAD_CHECKSUM;
+    port_conf.txmode.offloads = RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
+    port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
+    port_conf.rx_adv_conf.rss_conf.rss_hf = RTE_ETH_RSS_IP| RTE_ETH_RSS_TCP;
     ret = rte_eth_dev_configure(pkt_processor_t::port_id, dpdk_config->queue_size, dpdk_config->queue_size, &port_conf);
     if(ret < 0) {
         perror("rte_eth_dev_configure");
@@ -663,8 +662,8 @@ status_t pkt_processor_t::init_static_variable(int argc, char **argv, dpdk_confi
     }
     rte_eth_rxconf rxconf = dev_info.default_rxconf;
     rte_eth_txconf txconf = dev_info.default_txconf;
-    txconf.offloads |= DEV_TX_OFFLOAD_IPV4_CKSUM;
-    txconf.offloads |= DEV_TX_OFFLOAD_TCP_CKSUM;
+    txconf.offloads |= RTE_ETH_TX_OFFLOAD_IPV4_CKSUM;
+    txconf.offloads |= RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
     for(int i = 0; i < dpdk_config->queue_size; ++i) {
         ret = rte_eth_rx_queue_setup(pkt_processor_t::port_id, i, 2048, rte_socket_id(), &rxconf, mbuf_pool);
         if(ret < 0)
@@ -708,7 +707,7 @@ void pkt_processor_t::run(int core_id) {
 void pkt_processor_t::stop() {
     exit_flag = true;
     uint32_t core_id;
-    RTE_LCORE_FOREACH_SLAVE(core_id) {
+    RTE_LCORE_FOREACH_WORKER(core_id) {
         rte_eal_wait_lcore(core_id);
     }
 }

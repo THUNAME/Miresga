@@ -2,9 +2,9 @@ project('L7LB_Server', 'cpp', version: '1.0.0',
         default_options: [ 'cpp_std=c++17', 'optimization=3', 'warning_level=3'])
 
 cmake = import('cmake')
-libcuckoo_pro = cmake.subproject('third_party/libcuckoo')
+libcuckoo_pro = cmake.subproject('libcuckoo')
 libcuckoo_dep = libcuckoo_pro.dependency('libcuckoo')
-json_pro = subproject('third_party/json')
+json_pro = subproject('json')
 json_dep = json_pro.get_variable('nlohmann_json_dep')
 pthread_dep = dependency('threads')
 dpdk_dep = dependency('libdpdk', required: true)

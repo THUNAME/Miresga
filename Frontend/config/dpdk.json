@@ -1,0 +1,9 @@
+{
+    "pci_addr": "0000:c5:00.0",
+    "rx_ring_size" : 10240,
+    "tx_ring_size" : 10240,
+    "num_mbufs" : 65536,
+    "mbuf_cache_size" : 512,
+    "mbuf_data_room_size" : 2048,
+    "burst_size" : 32
+}
