@@ -4,9 +4,6 @@
 //#define DEBUG
 #define CONFIG_PATH "../config/config.json"
 #define DPDK_CONFIG_PATH "../config/dpdk.json"
-#define RULE_CONFIG_PATH "../config/rule.json"
-#define D_INDEX_CONFIG_PATH "../config/d_index.json"
-#define V_INFO_CONFIG_PATH "../config/v_info.json"
 
 enum status_t {
     OK = 0,

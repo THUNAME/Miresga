@@ -8,6 +8,7 @@ moodycamel::ConcurrentQueue<my_key_t> *pkt_processor_t::del_queue = nullptr;
 uint16_t pkt_processor_t::port_id = 0;
 rule_controller_t *pkt_processor_t::rule_controller = nullptr;
 dpdk_config_t *pkt_processor_t::dpdk_config = nullptr;
+rte_ether_addr pkt_processor_t::source_mac;
 
 pkt_processor_t::pkt_processor_t(int queue_id):add_token(*add_queue), del_token(*del_queue) {
     this->queue_id = queue_id;
@@ -409,12 +410,7 @@ status_t pkt_processor_t::forward_inbound_pkt(uint8_t d_index, rte_mbuf* recv_bu
         printf("[ERROR]: Cannot find the backend server.\n");
         return status_t::INTERNAL_ERROR;
     }
-    eth_hdr->src_addr.addr_bytes[0] = 0x0c;
-    eth_hdr->src_addr.addr_bytes[1] = 0x42;
-    eth_hdr->src_addr.addr_bytes[2] = 0xa1;
-    eth_hdr->src_addr.addr_bytes[3] = 0xd1;
-    eth_hdr->src_addr.addr_bytes[4] = 0xd0;
-    eth_hdr->src_addr.addr_bytes[5] = 0xc8;
+    rte_ether_addr_copy(&pkt_processor_t::source_mac, &eth_hdr->src_addr);
     rte_ether_addr_copy(&server_info->mac, &eth_hdr->dst_addr);
     ip_hdr->dst_addr = htonl(server_info->ip);
     ip_hdr->hdr_checksum = 0;
@@ -441,12 +437,7 @@ status_t pkt_processor_t::forward_outbound_pkt(rte_mbuf *recv_buf, rte_mbuf *sen
         //printf("[ERROR]: Cannot find the backend server.\n");
         return status_t::INTERNAL_ERROR;
     }
-    eth_hdr->src_addr.addr_bytes[0] = 0x0c;
-    eth_hdr->src_addr.addr_bytes[1] = 0x42;
-    eth_hdr->src_addr.addr_bytes[2] = 0xa1;
-    eth_hdr->src_addr.addr_bytes[3] = 0xd1;
-    eth_hdr->src_addr.addr_bytes[4] = 0xd0;
-    eth_hdr->src_addr.addr_bytes[5] = 0xc8;
+    rte_ether_addr_copy(&pkt_processor_t::source_mac, &eth_hdr->src_addr);
     rte_ether_addr_copy(&server_info->mac, &eth_hdr->dst_addr);
     ip_hdr->src_addr = htonl(server_info->ip);
     ip_hdr->hdr_checksum = 0;
@@ -471,12 +462,7 @@ status_t pkt_processor_t::reply_rst_pkt(rte_mbuf *recv_buf, rte_mbuf *send_buf) 
     //rte_ether_addr_copy(&eth_hdr->d_addr, &tmp);
     rte_ether_addr_copy(&eth_hdr->src_addr, &eth_hdr->dst_addr);
     //rte_ether_addr_copy(&tmp, &eth_hdr->s_addr);
-    eth_hdr->src_addr.addr_bytes[0] = 0x0c;
-    eth_hdr->src_addr.addr_bytes[1] = 0x42;
-    eth_hdr->src_addr.addr_bytes[2] = 0xa1;
-    eth_hdr->src_addr.addr_bytes[3] = 0xd1;
-    eth_hdr->src_addr.addr_bytes[4] = 0xd0;
-    eth_hdr->src_addr.addr_bytes[5] = 0xc8;
+    rte_ether_addr_copy(&pkt_processor_t::source_mac, &eth_hdr->src_addr);
     uint32_t tmp_ip = ip_hdr->src_addr;
     ip_hdr->src_addr = ip_hdr->dst_addr;
     ip_hdr->dst_addr = tmp_ip;
@@ -510,12 +496,7 @@ status_t pkt_processor_t::send_rst_pkt(uint8_t d_index, rte_mbuf *recv_buf, rte_
     rte_tcp_hdr *tcp_hdr = (rte_tcp_hdr*)(ip_hdr + 1);
     server_info_t *server_info = pkt_processor_t::rule_controller->lookup_backend_server_info(d_index);
     rte_ether_addr_copy(&server_info->mac, &eth_hdr->dst_addr);
-    eth_hdr->src_addr.addr_bytes[0] = 0x0c;
-    eth_hdr->src_addr.addr_bytes[1] = 0x42;
-    eth_hdr->src_addr.addr_bytes[2] = 0xa1;
-    eth_hdr->src_addr.addr_bytes[3] = 0xd1;
-    eth_hdr->src_addr.addr_bytes[4] = 0xd0;
-    eth_hdr->src_addr.addr_bytes[5] = 0xc8;
+    rte_ether_addr_copy(&pkt_processor_t::source_mac, &eth_hdr->src_addr);
     ip_hdr->dst_addr = server_info->ip;
     ip_hdr->version_ihl = 5 + (ip_hdr->version_ihl & 0xf0);
     ip_hdr->total_length = htons(40);  
@@ -538,12 +519,7 @@ status_t pkt_processor_t::send_cached_pkt(uint8_t d_index, char *cached_pkt, rte
     memcpy(eth_hdr, cached_pkt, size);
     server_info_t *server_info = pkt_processor_t::rule_controller->lookup_backend_server_info(d_index);
     rte_ether_addr_copy(&server_info->mac, &eth_hdr->dst_addr);
-    eth_hdr->src_addr.addr_bytes[0] = 0x0c;
-    eth_hdr->src_addr.addr_bytes[1] = 0x42;
-    eth_hdr->src_addr.addr_bytes[2] = 0xa1;
-    eth_hdr->src_addr.addr_bytes[3] = 0xd1;
-    eth_hdr->src_addr.addr_bytes[4] = 0xd0;
-    eth_hdr->src_addr.addr_bytes[5] = 0xc8;
+    rte_ether_addr_copy(&pkt_processor_t::source_mac, &eth_hdr->src_addr);
     rte_ipv4_hdr *ip_hdr = (rte_ipv4_hdr*)(eth_hdr + 1);
     ip_hdr->dst_addr = htonl(server_info->ip);
     ip_hdr->hdr_checksum = 0;
@@ -564,7 +540,7 @@ status_t pkt_processor_t::send_syn_pkt(uint8_t d_index, rte_mbuf *recv_buf, rte_
     rte_ether_hdr *eth_hdr = rte_pktmbuf_mtod(send_buf, rte_ether_hdr*);
     memcpy(eth_hdr, packet, 52 + sizeof(rte_ether_hdr));
     server_info_t *server_info = pkt_processor_t::rule_controller->lookup_backend_server_info(d_index);
-
+    rte_ether_addr_copy(&pkt_processor_t::source_mac, &eth_hdr->src_addr);
     rte_ether_addr_copy(&server_info->mac, &eth_hdr->dst_addr);
     rte_ipv4_hdr *ip_hdr = (rte_ipv4_hdr*)(eth_hdr + 1);
     ip_hdr->dst_addr = htonl(server_info->ip);
@@ -643,6 +619,11 @@ status_t pkt_processor_t::init_static_variable(int argc, char **argv, dpdk_confi
         perror("rte_eth_dev_get_port_by_name");
         return INTERNAL_ERROR;
     }
+    ret = rte_eth_macaddr_get(pkt_processor_t::port_id, &pkt_processor_t::source_mac);
+    if(ret < 0) {
+        perror("rte_eth_macaddr_get");
+        return INTERNAL_ERROR;
+    }
     rte_eth_conf port_conf;
     memset(&port_conf, 0, sizeof(port_conf));
     port_conf.rxmode.offloads = RTE_ETH_RX_OFFLOAD_CHECKSUM;
@@ -662,6 +643,7 @@ status_t pkt_processor_t::init_static_variable(int argc, char **argv, dpdk_confi
     }
     rte_eth_rxconf rxconf = dev_info.default_rxconf;
     rte_eth_txconf txconf = dev_info.default_txconf;
+    
     txconf.offloads |= RTE_ETH_TX_OFFLOAD_IPV4_CKSUM;
     txconf.offloads |= RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
     for(int i = 0; i < dpdk_config->queue_size; ++i) {

@@ -48,6 +48,7 @@ class pkt_processor_t {
 private:
     static libcuckoo::cuckoohash_map<uint64_t, flow_data_t *> *flow_hash_map;
     static rte_mempool *mbuf_pool;
+    static rte_ether_addr source_mac;
     static rule_controller_t *rule_controller;
     static dpdk_config_t *dpdk_config;
     static std::vector<uint8_t> crc8_table;

@@ -12,23 +12,26 @@
 using json = nlohmann::json;
 
 int main(int argc, char *argv[]) {
-    if(numa_available() == -1) {
-        std::cerr << "NUMA is not available" << std::endl;
-        return -1;
-    }
     
-    numa_set_bind_policy(1);
-    numa_bind(numa_parse_nodestring("3"));
 
     std::ifstream total_config(CONFIG_PATH);
     json config;
     total_config >> config;
     std::string local_ip = config["local_ip"];
-    uint32_t local_listen_port = config["local_listen_port"];
     uint32_t local_switch_port = config["local_switch_port"];
     std::string switch_ip = config["switch_ip"];
     uint32_t switch_port = config["switch_port"];
     std::vector<int> pkt_processor_core_ids;
+    if (config.contains("numa_node")) {
+        std::string numa_node = config["numa_node"];
+        if(numa_available() == -1) {
+            std::cerr << "NUMA is not available" << std::endl;
+            return -1;
+        }
+        
+        numa_set_bind_policy(1);
+        numa_bind(numa_parse_nodestring(numa_node.c_str()));
+    }
     auto res = config["pkt_processor_core_ids"];
     if(res.is_array()) {
         int size = res.size();
@@ -48,8 +51,9 @@ int main(int argc, char *argv[]) {
         std::cerr << "pkt_processor_core_ids is not an array or an integer" << std::endl;
         return -1;
     }
-    uint32_t memory_pool_size = config["memory_pool_size"];
+
     total_config.close();
+    
     std::ifstream dpdk_config(DPDK_CONFIG_PATH);
     json dpdk_config_json;
     dpdk_config >> dpdk_config_json;
@@ -64,22 +68,25 @@ int main(int argc, char *argv[]) {
     dpdk_config_args.queue_size = pkt_processor_core_ids.size();
     std::cout << dpdk_config_args.queue_size << std::endl;
     dpdk_config.close();
+
     int epoll_fd = epoll_create1(0);
     if(epoll_fd == -1) {
         perror("epoll_create1");
         return -1;
     }
-    std::cout << "Memory pool initializing" << std::endl;
-    std::cout << "Memory pool initialized" << std::endl;
+
     libcuckoo::cuckoohash_map<uint64_t, flow_data_t *> flow_hash_map[256];
+    
     std::cout << "Rule controller initializing" << std::endl;
     rule_controller_t *rule_controller = new rule_controller_t;
     std::cout << "Rule controller initialized" << std::endl;
+
     std::cout << "Entry controller initializing" << std::endl;
     moodycamel::ConcurrentQueue<my_pair_t> *add_queue = new moodycamel::ConcurrentQueue<my_pair_t>;
     moodycamel::ConcurrentQueue<my_key_t> *del_queue = new moodycamel::ConcurrentQueue<my_key_t>;
     std::shared_ptr<entry_controller_t> entry_controller = std::make_shared<entry_controller_t>(add_queue, del_queue);
     std::cout << "Entry controller initialized" << std::endl;
+
     std::cout << "Pkt processor initializing" << std::endl;
     pkt_processor_t::init_static_variable(argc, argv, &dpdk_config_args, rule_controller, add_queue, del_queue, flow_hash_map);
     std::vector<std::shared_ptr<pkt_processor_t>> pkt_processors;
@@ -88,6 +95,7 @@ int main(int argc, char *argv[]) {
         pkt_processors.push_back(pkt_processor);
     }
     std::cout << "Pkt processor initialized" << std::endl;
+
     sockaddr_in controller_addr, switch_addr;
     memset(&controller_addr, 0, sizeof(controller_addr));
     controller_addr.sin_family = AF_INET;
@@ -113,11 +121,13 @@ int main(int argc, char *argv[]) {
     }
     
     std::cout << "Pkt processor started" << std::endl;
+
     if(connect(switch_fd, (struct sockaddr *)&switch_addr, sizeof(switch_addr)) == -1) {
         perror("connect");
         return -1;
     }
     std::cout << "Connection established" << std::endl;
+
     epoll_event sock_ev;
     sock_ev.events = EPOLLIN;
     sock_ev.data.fd = switch_fd;
@@ -125,11 +135,13 @@ int main(int argc, char *argv[]) {
         perror("epoll_ctl");
         return -1;
     }
+
     int timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
     if(timer_fd == -1) {
         perror("timerfd_create");
         return -1;
     }
+
     itimerspec timer_spec;
     timer_spec.it_interval.tv_nsec = 100000;
     timer_spec.it_value.tv_nsec = 100000;
@@ -139,6 +151,7 @@ int main(int argc, char *argv[]) {
         perror("timerfd_settime");
         return -1;
     }
+
     epoll_event timer_ev;
     timer_ev.events = EPOLLIN;
     timer_ev.data.fd = timer_fd;
@@ -146,6 +159,7 @@ int main(int argc, char *argv[]) {
         perror("epoll_ctl");
         return -1;
     }
+
     itimerspec timer_spec_2;
     timer_spec_2.it_interval.tv_nsec = 0;
     timer_spec_2.it_value.tv_nsec = 0;
@@ -160,6 +174,7 @@ int main(int argc, char *argv[]) {
         perror("timerfd_settime");
         return -1;
     }
+
     epoll_event timer_ev_2;
     timer_ev_2.events = EPOLLIN;
     timer_ev_2.data.fd = timer_fd_2;
@@ -242,7 +257,6 @@ int main(int argc, char *argv[]) {
                     }
                 }
                 else if(events[i].data.fd == timer_fd) {
-                    
                     uint64_t exp;
                     ssize_t s = read(timer_fd, &exp, 8);
                     if(s == -1) {
