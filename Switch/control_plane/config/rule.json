@@ -1,0 +1,82 @@
+[
+    {
+        "key": "1KBFile",
+        "d_index": 0,
+        "offload_flag": 1
+    },
+    {
+        "key": "8KBFile",
+        "d_index": 0,
+        "offload_flag": 0
+    },
+    {
+        "key": "64KBFile",
+        "d_index": 0,
+        "offload_flag": 1
+    },
+    {
+        "key": "512KBFile",
+        "d_index": 0,
+        "offload_flag": 1
+    },
+    {
+        "key": "1MBFile",
+        "d_index": 0,
+        "offload_flag": 1
+    },
+    {
+        "key": "8MBFile",
+        "d_index": 0,
+        "offload_flag": 1
+    },
+    {
+        "key": "16MBFile",
+        "d_index": 0,
+        "offload_flag": 1
+    },
+    {
+        "key": "100MBFile",
+        "d_index": 0,
+        "offload_flag": 1
+    },
+    {
+        "key": "1GBFile",
+        "d_index": 0,
+        "offload_flag": 1
+    },
+    {
+        "key": "1KB_File",
+        "d_index": 1,
+        "offload_flag": 0
+    },
+    {
+        "key": "8KB_File",
+        "d_index": 1,
+        "offload_flag": 0
+    },
+    {
+        "key": "64KB_File",
+        "d_index": 1,
+        "offload_flag": 0
+    },
+    {
+        "key": "512KB_File",
+        "d_index": 1,
+        "offload_flag": 0
+    },
+    {
+        "key": "1MB_File",
+        "d_index": 1,
+        "offload_flag": 1
+    },
+    {
+        "key": "8MB_File",
+        "d_index": 1,
+        "offload_flag": 1
+    },
+    {
+        "key": "16MB_File",
+        "d_index": 1,
+        "offload_flag": 1
+    }
+]

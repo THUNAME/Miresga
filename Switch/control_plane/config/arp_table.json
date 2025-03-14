@@ -1,0 +1,14 @@
+[
+    {
+        "opcode": 1,
+        "target_proto_addr": 167772161,
+        "mac_prefix": 11250603,
+        "mac_suffix": 13487565
+    },
+    {
+        "opcode": 1,
+        "target_proto_addr": 167772417,
+        "mac_prefix": 13487565,
+        "mac_suffix": 11250603
+    }
+]

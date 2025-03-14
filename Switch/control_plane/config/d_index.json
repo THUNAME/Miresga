@@ -1,0 +1,20 @@
+[
+    {
+        "d_index": 0,
+        "ip": 167772418,
+        "port": 80,
+        "egress_port": 140,
+        "mac_prefix": 803489,
+        "mac_suffix": 13750473,
+        "mac_array": [12, 66, 161, 209, 208, 201]
+    },
+    {
+        "d_index": 1,
+        "ip": 167772419,
+        "port": 80,
+        "egress_port": 184,
+        "mac_prefix": 803489,
+        "mac_suffix": 10005040,
+        "mac_array": [12, 66, 161, 152, 170, 48]
+    }
+]
