@@ -1,8 +1,0 @@
-{
-    "local_ip"                : "10.0.1.252",
-    "local_switch_port"       : 9999,
-    "switch_ip"               : "10.0.1.254",
-    "switch_port"             : 12345,
-    "pkt_processor_core_ids"  : [3, 7, 11, 15, 19, 23, 27, 31 ],
-    "numa_node"               : "3"
-}

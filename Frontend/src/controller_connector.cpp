@@ -1,0 +1,45 @@
+#include "controller_connector.h"
+
+ControllerConnector::ControllerConnector(char* controller_ip, uint16_t controller_port)
+{
+    socket = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (socket < 0) {
+        throw std::runtime_error("Failed to create socket");
+    }
+
+    struct sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(controller_port);
+    inet_pton(AF_INET, controller_ip, &server_addr.sin_addr);
+
+    if (connect(socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        ::close(socket);
+        throw std::runtime_error("Failed to connect to controller");
+    }
+}
+
+ControllerConnector::~ControllerConnector()
+{
+    if (socket >= 0) {
+        ::close(socket);
+    }
+}
+
+MiresgaStatus_t ControllerConnector::send_message(char* msg, size_t msg_size)
+{
+    ssize_t sent_size = send(socket, msg, msg_size, 0);
+    if (sent_size < 0) {
+        return MiresgaStatus_t::INTERNAL_ERROR;
+    }
+    return MiresgaStatus_t::OK;
+}
+
+MiresgaStatus_t ControllerConnector::recv_message(char* buffer, size_t buffer_size, size_t& recv_size)
+{
+    ssize_t received = recv(socket, buffer, buffer_size, 0);
+    if (received < 0) {
+        return MiresgaStatus_t::INTERNAL_ERROR;
+    }
+    recv_size = static_cast<size_t>(received);
+    return MiresgaStatus_t::OK;
+}
