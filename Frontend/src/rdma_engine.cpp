@@ -116,6 +116,12 @@ void RDMAEngine::add_flow_data(MiresgaOFTEntry_t* data) {
     _send_add_buffer->add_new_data(static_cast<void*>(data), sizeof(MiresgaOFTEntry_t));
 }
 
+void RDMAEngine::add_flow_data(std::vector<MiresgaOFTEntry_t>& data_vec) {
+    if (data_vec.empty()) return;
+    size_t total_size = data_vec.size() * sizeof(MiresgaOFTEntry_t);
+    _send_add_buffer->add_new_data(static_cast<void*>(data_vec.data()), total_size);
+}
+
 void RDMAEngine::del_flow_data(MiresgaOFTKey_t* data) {
     _send_del_buffer->add_new_data(static_cast<void*>(data), sizeof(MiresgaOFTKey_t));
 }

@@ -1,6 +1,6 @@
 {
-    "local_ip"                : "10.0.1.253",
-    "local_switch_port"       : 9999,
+    "client_mac"              : "00:1B:21:BB:FF:FF",
+    "frontend_mac"            : "00:1B:21:AA:FF:FF",
     "switch_ip"               : "10.0.1.254",
     "switch_port"             : 12345,
     "numa_node"               : "2"

@@ -10,6 +10,7 @@
 #include "controller_client.h"
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <numa.h>
 
 using json = nlohmann::json;
@@ -65,7 +66,8 @@ int main(int argc, char** argv) {
     rdma_config_fs >> rdma_config_json;
     std::string rdma_dev_name = rdma_config_json["dev_name"];
     rdma_config_fs.close();
-    ControllerClient::init_controller_client(switch_ip_str.data(), switch_port, rdma_dev_name.data());
+    ControllerClient::init_controller_client(switch_ip_str.data(), switch_port, 
+                                             rdma_dev_name.data());
     ControllerClient* controller_client = ControllerClient::get_instance();
     std::vector<PktProcessor*> pkt_processors;
     for (size_t i = 0; i < pkt_processor_core_ids.size(); ++i) {

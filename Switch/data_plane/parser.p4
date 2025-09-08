@@ -76,8 +76,15 @@ parser SwitchIngressParser(packet_in pkt,
         hdr.bridged.index = 0;
         ig_md.cip = 0;
         ig_md.cport = 0;
-        ig_md.hash_result = 0;
+        ig_md.crc_hash_res = 0;
         ig_md.direction = 0;
+        ig_md.bloomfilter1_hash_res = 0;
+        ig_md.bloomfilter2_hash_res = 0;
+        ig_md.new_tb_idx = 0;
+        ig_md.updating_flag = 0;
+        ig_md.in_bloomfilter_flag = 0;
+        ig_md.new_flow_flag = 0;
+        ig_md.use_0_flag = 0;
         transition parse_ethernet;
     }
 

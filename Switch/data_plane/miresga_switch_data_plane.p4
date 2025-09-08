@@ -16,10 +16,6 @@
  *  License.
  ******************************************************************************/
 
-#ifndef _MAIN_P4
-#define _MAIN_P4
-
-
 #include <core.p4>
 #if __TARGET_TOFINO__ == 3
 #include <t3na.p4>
@@ -36,15 +32,91 @@ control SwitchIngress(inout header_t hdr,
         in ingress_intrinsic_metadata_t ig_intr_md,
         in ingress_intrinsic_metadata_from_parser_t ig_intr_prsr_md,
         inout ingress_intrinsic_metadata_for_deparser_t ig_intr_dprsr_md,
-        inout ingress_intrinsic_metadata_for_tm_t ig_intr_tm_md){
+        inout ingress_intrinsic_metadata_for_tm_t ig_intr_tm_md)
+{
+    CRCPolynomial<bit<16>>(16w0x18005, // polynomial
+                          true,          // reversed
+                          false,         // use msb?
+                          false,         // extended?
+                          0, // initial shift register value
+                          0  // result xor
+                        ) poly1;
+
+    CRCPolynomial<bit<16>>(16w0x10589, // polynomial
+                          false,          // reversed
+                          false,         // use msb?
+                          false,         // extended?
+                          1, // initial shift register value
+                          1  // result xor
+                        ) poly2;  
     Hash<bit<8>>(HashAlgorithm_t.CRC8) lb_index_hasher;
+    Hash<bit<16>>(HashAlgorithm_t.CUSTOM, poly1) bloomfilter_hasher_1;
+    Hash<bit<16>>(HashAlgorithm_t.CUSTOM, poly2) bloomfilter_hasher_2;
     Alpm(number_partitions = 1024, subtrees_per_partition = 2) algo_lpm;
+    
+    Register<bit<1>, bit<1>>(1) updating_flag_reg;
+    RegisterAction<bit<1>, bit<1>, bit<1>>(updating_flag_reg) read_updating_flag = {
+        void apply(inout bit<1> value, out bit<1> updating_flag) {
+            updating_flag = value;
+        }
+    };
+    Register<bit<1>, bit<1>>(1) new_tb_idx_reg;
+    RegisterAction<bit<1>, bit<1>, bit<1>>(new_tb_idx_reg) read_new_tb_idx = {
+        void apply(inout bit<1> value, out bit<1> new_tb_idx) {
+            new_tb_idx = value;
+        }
+    }; 
+    Register<bit<1>, bit<16>>(65536) bloomfilter_1_reg;
+    RegisterAction<bit<1>, bit<16>, bit<1>>(bloomfilter_1_reg) read_bloomfilter_1 = {
+        void apply(inout bit<1> value, out bit<1> res_1) {
+            res_1 = value;
+        }
+    };
+    RegisterAction<bit<1>, bit<16>, void>(bloomfilter_1_reg) write_bloomfilter_1 = {
+        void apply(inout bit<1> value) {
+            value = 1w1;
+        }
+    };
+    Register<bit<1>, bit<16>>(65536) bloomfilter_2_reg;
+    RegisterAction<bit<1>, bit<16>, bit<1>>(bloomfilter_2_reg) read_bloomfilter_2 = {
+        void apply(inout bit<1> value, out bit<1> res_2) {
+            res_2 = value;
+        }
+    };
+    RegisterAction<bit<1>, bit<16>, void>(bloomfilter_2_reg) write_bloomfilter_2 = {
+        void apply(inout bit<1> value) {
+            value = 1w1;
+        }
+    };
+
     action drop() {
         ig_intr_dprsr_md.drop_ctl = 0x1;
     }
 
-    action nop() {
+    action nop() {}
 
+    action get_updating_flag_flag() {
+        ig_md.updating_flag = read_updating_flag.execute(0);
+    }
+
+    table get_updating_flag_flag_table {
+        actions = {
+            get_updating_flag_flag;
+        }
+        const default_action = get_updating_flag_flag;
+        size = 1;
+    }
+    
+    action get_new_tb_idx() {
+        ig_md.new_tb_idx = read_new_tb_idx.execute(0);
+    }
+
+    table get_new_tb_idx_table {
+        actions = {
+            get_new_tb_idx;
+        }
+        const default_action = get_new_tb_idx;
+        size = 1;
     }
 
     action reply_arp(mac_addr_t arp_mac) {
@@ -99,40 +171,10 @@ control SwitchIngress(inout header_t hdr,
         size = 2;  
     }
 
-    action dip_hit() {
-        ig_md.direction = 0b010;
-        ig_md.cip = hdr.ipv4.dst_addr;
-        ig_md.cport = hdr.tcp.dst_port;
-    }
-    
-    table dip_lookup_table {
-        key = {
-            hdr.ipv4.src_addr: exact;
-            hdr.tcp.src_port: exact;
-        }
-        actions = {
-            dip_hit;
-            nop;
-        }
-        const default_action = nop;
-        size = DIP_TABLE_SIZE;
-    }
-
-    action calculate_crc8() {
-        ig_md.hash_result = lb_index_hasher.get({ig_md.cip, ig_md.cport});
-    }
-
-    table calculate_crc8_table {
-        actions = {
-            calculate_crc8;
-        }
-        const default_action = calculate_crc8;
-        size = 1;
-    }
     action no_payload() {
         hdr.bridged.payload_flag = 1w0;
     }
-
+    
     table calculate_payload_table {
         key = {
             hdr.ipv4.total_len: exact;
@@ -159,62 +201,24 @@ control SwitchIngress(inout header_t hdr,
         size = 16;
     }
 
-    // action respond_syn() {
-    //     ig_md.skip_oft_flag = 1w1;
-    //     ig_md.skip_forward_flag = 1w1;
-    //     hdr.bridged.syn_respond = 1w1;
-    //     hdr.ethernet.dst_addr = hdr.ethernet.src_addr;
-    //     hdr.ethernet.src_addr = 0xabababcdcdcd;
-    //     ig_intr_tm_md.ucast_egress_port = ig_intr_md.ingress_port;
-    // }
-
-    // action skip_oft_and_forward_to_lb() {
-    //     ig_md.skip_oft_flag = 1w1;
-    //     hdr.bridged.index = ig_md.hash_result;
-    //     hdr.bridged.lb_flag = 1w1;
-    // }
-
-    // action skip_oft() {
-    //     ig_md.skip_oft_flag = 1w1;
-    //     hdr.bridged.forward_to_dest = 1w1;
-    // }
-
-    // action forward_to_dest() {
-    //     hdr.bridged.forward_to_dest = 1w1;
-    //     hdr.bridged.v_flag = 1w1;
-    // }
-
-    // action send_to_cpu() {
-    //     ig_intr_tm_md.ucast_egress_port = 192;
-    //     ig_md.skip_oft_flag = 1w1;
-    // }
-
-    // table preprocess_table {
-    //     key = {
-    //         hdr.tcp.flags: ternary;
-    //         ig_md.direction: ternary;
-    //         ig_md.payload_flag: ternary;
-    //     }
-    //     actions = {
-    //         respond_syn;
-    //         skip_oft_and_forward_to_lb;
-    //         skip_oft;
-    //         forward_to_dest;
-    //         send_to_cpu;
-    //         nop;
-    //     }
-    //     const entries = {
-    //         (0b00000010, 3w1, 1w0): respond_syn();
-    //         (0b00000001, _, _): skip_oft_and_forward_to_lb();
-    //         (0b00000100, _, _): skip_oft_and_forward_to_lb();
-    //         (_, 3w1, 1w1): skip_oft_and_forward_to_lb();
-    //         (_, 3w2, _): forward_to_dest();
-    //         (_, 3w4, _): send_to_cpu();
-    //         (_, 3w0, _): skip_oft();
-    //     }
-    //     const default_action = nop;
-    //     size = 7;
-    // }
+    action dip_hit() {
+        ig_md.direction = 0b010;
+        ig_md.cip = hdr.ipv4.dst_addr;
+        ig_md.cport = hdr.tcp.dst_port;
+    }
+    
+    table dip_lookup_table {
+        key = {
+            hdr.ipv4.src_addr: exact;
+            hdr.tcp.src_port: exact;
+        }
+        actions = {
+            dip_hit;
+            nop;
+        }
+        const default_action = nop;
+        size = DIP_TABLE_SIZE;
+    }
 
     action oft_hit(bit<8> d_index) {
         hdr.bridged.index = d_index;
@@ -233,6 +237,79 @@ control SwitchIngress(inout header_t hdr,
         const default_action = nop;
         size = 143360;
     }
+
+    action calculate_crc8() {
+        ig_md.crc_hash_res = lb_index_hasher.get({ig_md.cip, ig_md.cport});
+    }
+
+    table calculate_crc8_table {
+        actions = {
+            calculate_crc8;
+        }
+        const default_action = calculate_crc8;
+        size = 1;
+    }
+
+    action calculate_bloomfilter_hash() {
+        ig_md.bloomfilter1_hash_res = bloomfilter_hasher_1.get({ig_md.cip, ig_md.cport});
+        ig_md.bloomfilter2_hash_res = bloomfilter_hasher_2.get({ig_md.cip, ig_md.cport});
+    }
+
+    table calculate_bloomfilter_hash_table {
+        actions = {
+            calculate_bloomfilter_hash;
+        }
+        const default_action = calculate_bloomfilter_hash;
+        size = 1;
+    }
+
+    action get_bloomfilter1_res() {
+        ig_md.in_bloomfilter_flag = read_bloomfilter_1.execute(ig_md.bloomfilter1_hash_res);
+    }
+
+    table get_bloomfilter1_res_table {
+        actions = {
+            get_bloomfilter1_res;
+        }
+        const default_action = get_bloomfilter1_res;
+        size = 1;
+    }
+
+    action get_bloomfilter2_res() {
+        ig_md.in_bloomfilter_flag = ig_md.in_bloomfilter_flag & read_bloomfilter_2.execute(ig_md.bloomfilter2_hash_res);
+    }
+
+    table get_bloomfilter2_res_table {
+        actions = {
+            get_bloomfilter2_res;
+        }
+        const default_action = get_bloomfilter2_res;
+        size = 1;
+    }
+
+    action set_bloomfilter1() {
+        write_bloomfilter_1.execute(ig_md.bloomfilter1_hash_res);
+    }
+    
+    table set_bloomfilter1_table {
+        actions = {
+            set_bloomfilter1;
+        }
+        const default_action = set_bloomfilter1;
+        size = 1;
+    }
+
+    action set_bloomfilter2() {
+        write_bloomfilter_2.execute(ig_md.bloomfilter2_hash_res);
+    }
+
+    table set_bloomfilter2_table {
+        actions = {
+            set_bloomfilter2;
+        }
+        const default_action = set_bloomfilter2;
+        size = 1;
+    }
     
     action set_egress_port(mac_addr_t src_mac, mac_addr_t dst_mac, PortId_t dst_port) {
         hdr.ethernet.src_addr = src_mac;
@@ -242,7 +319,7 @@ control SwitchIngress(inout header_t hdr,
     
     table dest_to_egress_port_table {
         key = {
-            hdr.ipv4.dst_addr: lpm;
+            hdr.ipv4.dst_addr: exact;
         }
 
         actions = {
@@ -250,7 +327,6 @@ control SwitchIngress(inout header_t hdr,
         }
 
         size = 1024;
-        alpm = algo_lpm;
     }
 
     table d_index_to_egress_port_table {
@@ -265,9 +341,21 @@ control SwitchIngress(inout header_t hdr,
         size = DIP_TABLE_SIZE;
     }
 
-    table lb_index_to_egress_port_table {
+    table lb_index_to_egress_port_table_0 {
         key = {
-            ig_md.hash_result: exact;
+            ig_md.crc_hash_res: exact;
+        }
+        actions = {
+            set_egress_port;
+            nop;
+        }
+        const default_action = nop;
+        size = LB_TABLE_SIZE;
+    }
+
+    table lb_index_to_egress_port_table_1 {
+        key = {
+            ig_md.crc_hash_res: exact;
         }
         actions = {
             set_egress_port;
@@ -279,6 +367,8 @@ control SwitchIngress(inout header_t hdr,
 
     apply {
         hdr.bridged.setValid();
+        get_updating_flag_flag_table.apply();
+        get_new_tb_idx_table.apply();
         if(hdr.arp.isValid()) {
             arp_table.apply();
             ig_intr_tm_md.bypass_egress = 1w1;
@@ -287,30 +377,9 @@ control SwitchIngress(inout header_t hdr,
             calculate_payload_table.apply();
             vip_lookup_table.apply();
             dip_lookup_table.apply();
+            offload_connection_table.apply(); 
             calculate_crc8_table.apply();
-            
-            
-            // preprocess_table.apply();
-            offload_connection_table.apply();
-            // if(hdr.tcp.syn == 1w1 && ig_md.direction == 3w1) {
-            //     respond_syn();
-            // }
-            // else if(hdr.tcp.rst == 1w1 || hdr.tcp.fin == 1w1) {
-            //     skip_oft_and_forward_to_lb();
-            // }
-            // else if(ig_md.payload_flag == 1w1 && ig_md.direction == 3w1) {
-            //     skip_oft_and_forward_to_lb();
-            // }
-            // else if(ig_md.direction == 3w2) {
-            //     forward_to_dest();
-            // }
-            // else if(ig_md.direction == 3w4) {
-            //     send_to_cpu();
-            // }
-            // else if(ig_md.direction == 3w0) {
-            //     skip_oft();
-            // }
-                                            
+            calculate_bloomfilter_hash_table.apply();                           
         }
         else if(hdr.udp.isValid()){
             ig_intr_tm_md.bypass_egress = 1w1;
@@ -332,9 +401,11 @@ control SwitchIngress(inout header_t hdr,
             }
             else if(hdr.bridged.hit_flag == 1w0) {
                 hdr.bridged.lb_flag = 1w1;
+                ig_md.new_flow_flag = hdr.bridged.payload_flag;
             }
             else if(hdr.bridged.hit_flag == 1w1 && hdr.bridged.payload_flag == 1w1) {
                 hdr.bridged.lb_flag = 1w1;
+                ig_md.new_flow_flag = 1w1;
             }
             else if(hdr.bridged.hit_flag == 1w1){
                 hdr.bridged.d_flag = 1w1;
@@ -354,7 +425,26 @@ control SwitchIngress(inout header_t hdr,
         }
 
         if(hdr.bridged.lb_flag == 1w1) {
-            lb_index_to_egress_port_table.apply();
+            if(ig_md.updating_flag == 1w1 && ig_md.new_flow_flag == 1w1) {
+                set_bloomfilter1_table.apply();
+                set_bloomfilter2_table.apply();
+                ig_md.use_0_flag = 1 - ig_md.new_tb_idx;
+            } else if(ig_md.updating_flag == 1w1) {
+                get_bloomfilter1_res_table.apply();
+                get_bloomfilter2_res_table.apply();
+                if(ig_md.in_bloomfilter_flag == 1w0) {
+                    ig_md.use_0_flag = ig_md.new_tb_idx;
+                } else {
+                    ig_md.use_0_flag = 1 - ig_md.new_tb_idx;
+                }
+            } else {
+                ig_md.use_0_flag = 1 - ig_md.new_tb_idx;
+            }
+            if(ig_md.use_0_flag == 1w1) {
+                lb_index_to_egress_port_table_0.apply();
+            } else {
+                lb_index_to_egress_port_table_1.apply();
+            }
         }
         else if(hdr.bridged.d_flag == 1w1) {
             d_index_to_egress_port_table.apply();
@@ -475,5 +565,3 @@ Pipeline(
     SwitchEgressDeparser()) pipe;
 
 Switch(pipe) main;
-
-#endif

@@ -1,0 +1,19 @@
+{
+    "table_name": "SwitchIngress.offload_connection_table",
+    "key_names": [
+        {
+            "name": "ig_md.cip",
+            "match_type": "exact"
+        },
+        {
+            "name": "ig_md.cport",
+            "match_type": "exact"
+        }
+    ],
+    "action_names": [
+        "SwitchIngress.offload_connection"
+    ],
+    "data_names": [
+        "d_index"
+    ]
+}

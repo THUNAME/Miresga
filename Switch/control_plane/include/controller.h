@@ -1,50 +1,91 @@
 #ifndef CONTROLLER_H_
 #define CONTROLLER_H_
-#include <sys/epoll.h>
-#include <sys/time.h>
-#include <arpa/inet.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
+
+#define TIMER_PRESENTOR 0x0b0b0b0b
+
 #include "client.h"
 #include <unistd.h>
-#include <cJson/cJSON.h>
+#include <arpa/inet.h>
+#include <sys/epoll.h>
+#include <sys/socket.h>
+#include <sys/timerfd.h>
+#include <netinet/in.h>
+#include <unordered_set>
+#include <unordered_map>
+#include <iostream>
+#include <vector>
+#include <thread>
 
-struct my_key_t {
-    uint8_t crc;
-    uint32_t client_ip;
-    uint16_t client_port;
+#define MAX_EPOLL_EVENTS 16
+
+enum ControllerState_t {
+    INIT,
+    NORMAL,
+    WAIT_RDMA_INFO,
+    WAIT_RDMA_INIT,
+    WAIT_SYNC
 };
 
-struct my_data_t {
+enum OperationType_t {
+    COMPLETE = 0,
+    UPDATE_RULE,
+    UPDATE_D_INDEX,
+    UPDATE_V_INFO,
+    OFFLOAD_ENTRIES,
+    INIT_RDMA_ENGINE,
+    SYNC_OLD_DATA,
+    UPDATE_RDMA_INFO,
+    RDMA_START,
+    RDMA_STOP
+};
+
+struct RDMAInfo_t {
+    uint8_t  gid[16];
+    uint32_t qpn;
+    uint64_t addr;
+    uint64_t rkey;
+};
+
+struct RuleEntry_t {
     uint8_t offload_flag;
     uint8_t d_index;
 };
 
-struct my_pair_t {
-    struct my_key_t key;
-    struct my_data_t data;
+class FrontendController_t {
+private:
+    inline static FrontendController_t* _instance = nullptr;
+    int _socket_fd;
+    int _epoll_fd;
+    bool _exit_flag;
+    uint8_t _updating_id;
+    std::thread _controller_thread;
+    SwitchClient_t* _client;
+    ControllerState_t _state;
+    std::unordered_map<std::string, RuleEntry_t> _rule_table;
+    std::unordered_map<std::string, EgressPortEntry_t> _ip_2_egress_port; 
+    std::unordered_map<uint8_t, EgressPortEntry_t> _id_2_egress_port;
+    std::unordered_map<uint8_t, int> _id_2_socket_fd;
+    std::unordered_map<int, uint8_t> _socket_fd_2_id;
+    std::unordered_map<uint8_t, std::unordered_map<uint8_t, RDMAInfo_t>> _id_2_rdma_info;
+    std::unordered_map<uint8_t, std::vector<uint8_t>> _id_2_crcs;
+    std::unordered_map<uint8_t, std::vector<uint8_t>> _id_2_need_changed_crcs;
+    std::unordered_map<uint8_t, std::unordered_map<uint8_t, std::vector<uint8_t>>> _id_2_sync_crcs;
+    std::unordered_set<uint8_t> _active_ids;
+    std::unordered_set<uint8_t> _idle_ids;
+    std::unordered_set<uint8_t> _wait_init_ids;
+    std::unordered_set<uint8_t> _wait_rdma_info_ids;
+    
+    ControllerState_t _state;
+    FrontendController_t();
+    ~FrontendController_t();
+    void _main_loop();
+    void _add_frontend(uint8_t id);
+    void _remove_frontend(uint8_t id);
+    void _update_rdma_info();
+public:
+    static FrontendController_t* get_instance();
+    void start();
+    void stop();
 };
-
-struct rule_t {
-    char rule[20];
-    uint8_t d_index;
-    uint8_t offload_flag;
-};
-
-struct server_info_t {
-    uint8_t mac[6];
-    uint32_t ip;
-    uint16_t port;
-};
-
-struct d_index_t {
-    uint8_t d_index;
-    struct server_info_t server_info;
-};
-
-extern void init_controller(char *ip, uint16_t port, char *rule_json_path, 
-                            char *d_index_json_path, char *v_info_json_path);
-extern void run_controller();
 
 #endif

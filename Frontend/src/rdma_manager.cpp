@@ -1,5 +1,7 @@
 #include "rdma_manager.h"
 
+// TODO: Add CRC Update
+
 RDMAManager::RDMAManager(const char* dev_name, int epoll_fd)
 {
     struct ibv_device** dev_list = ibv_get_device_list(NULL);
@@ -99,17 +101,22 @@ void RDMAManager::destroy_instance() {
     }
 }
 
-char* RDMAManager::add_engine(uint8_t id)
+std::string RDMAManager::add_engine(uint8_t id)
 {
-    char* msg = new char[1 + sizeof(RDMAInfo_t)];
-    msg[0] = static_cast<char>(MiresgaStatus_t::OK);
+    std::string msg;
+    msg.resize(sizeof(RDMAInfo_t));
     RDMAEngine* engine = new RDMAEngine(id, _pd, _cq, _local_gid);
     _id_2_engines[id] = std::make_pair(engine, false);
+    RDMAInfo_t* local_info = engine->get_local_rdma_info();
+    memcpy(msg.data(), local_info, sizeof(RDMAInfo_t));
     return msg;
 }
 
-void RDMAManager::update_engine(uint8_t id, RDMAInfo_t* remote_rdma_info)
+void RDMAManager::update_engine(uint8_t id, RDMAInfo_t* remote_rdma_info, std::vector<uint8_t> crcs)
 {
+    for (uint8_t crc : crcs) {
+        _crc_2_id[crc] = id;
+    }
     auto it = _id_2_engines.find(id);
     if (it == _id_2_engines.end()) {
         throw std::runtime_error("Engine ID not found");
@@ -120,11 +127,14 @@ void RDMAManager::update_engine(uint8_t id, RDMAInfo_t* remote_rdma_info)
     it->second.first->init_engine(remote_rdma_info);
 }
 
-void RDMAManager::remove_engine(uint8_t id)
+void RDMAManager::remove_engine(uint8_t id, std::unordered_map<uint8_t, uint8_t>& crc_2_id)
 {
+    for (auto _pair : crc_2_id) {
+        _crc_2_id[_pair.first] = _pair.second;
+    }
     auto it = _id_2_engines.find(id);
     if (it == _id_2_engines.end()) {
-        throw std::runtime_error("Engine ID not found");
+        return;
     }
     delete it->second.first;
     _id_2_engines.erase(it);
@@ -152,6 +162,11 @@ void RDMAManager::add_flow_data(MiresgaOFTEntry_t* add_data) {
     uint8_t crc = add_data->key.crc;
     uint8_t id = _crc_2_id[crc];
     _id_2_engines[id].first->add_flow_data(add_data);
+}
+
+void RDMAManager::add_old_flow_data(uint8_t remote_id, std::vector<MiresgaOFTEntry_t>& add_data_vec) {
+    if (add_data_vec.empty()) return;
+    _id_2_engines[remote_id].first->add_flow_data(add_data_vec);
 }
 
 void RDMAManager::del_flow_data(MiresgaOFTKey_t* del_data) {

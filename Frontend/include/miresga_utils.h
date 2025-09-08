@@ -47,6 +47,7 @@ enum OperationType_t {
     UPDATE_V_INFO,
     OFFLOAD_ENTRIES,
     INIT_RDMA_ENGINE,
+    SYNC_OLD_DATA,
     UPDATE_RDMA_INFO,
     RDMA_START,
     RDMA_STOP
@@ -68,13 +69,13 @@ struct ServerInfo_t
 
 struct MiresgaOFTKey_t
 {
+    uint8_t  modify_flag;
     uint8_t  crc;
-    uint8_t  padding;
     uint32_t client_ip;
     uint16_t client_port;
 };
 
-uint64_t packed_key(const MiresgaOFTKey_t* key);
+extern uint64_t packed_key(const MiresgaOFTKey_t key);
 
 struct MiresgaOFTData_t
 {

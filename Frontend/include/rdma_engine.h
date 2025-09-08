@@ -26,6 +26,7 @@ public:
     ~RDMAEngine();
     void init_engine(RDMAInfo_t* remote_rdma_info);
     void add_flow_data(MiresgaOFTEntry_t* data);
+    void add_flow_data(std::vector<MiresgaOFTEntry_t>& data_vec);
     void del_flow_data(MiresgaOFTKey_t* data);
     void sync();
     RDMAInfo_t* get_local_rdma_info();

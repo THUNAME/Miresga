@@ -13,11 +13,10 @@ MiresgaFlowData_t::~MiresgaFlowData_t() {
     }
 }
 
-uint64_t packed_key(const MiresgaOFTKey_t* key) {
-    return (static_cast<uint64_t>(key->crc) << 48) |
-           (static_cast<uint64_t>(key->padding) << 40) |
-           (static_cast<uint64_t>(key->client_ip) << 16) |
-           static_cast<uint64_t>(key->client_port);
+uint64_t packed_key(const MiresgaOFTKey_t key) {
+    return (static_cast<uint64_t>(key.crc) << 48) |
+           (static_cast<uint64_t>(key.client_ip) << 16) |
+           static_cast<uint64_t>(key.client_port);
 }
 
 RDMABuffer_t::RDMABuffer_t(size_t size, ibv_pd* pd) {
@@ -71,7 +70,6 @@ size_t RDMABuffer_t::add_new_data(void* data, size_t data_size) {
         ));
     }
     memcpy(buffer + offset, data, add_size);
-
     return add_size;
 }
 

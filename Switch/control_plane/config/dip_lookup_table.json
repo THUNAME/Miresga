@@ -1,0 +1,54 @@
+{
+    "table_name": "SwitchIngress.dip_lookup_table",
+    "key_names": [
+        {
+            "name": "hdr.ipv4.src_addr",
+            "match_type": "exact"
+        },
+        {
+            "name": "hdr.tcp.src_port",
+            "match_type": "exact"
+        }
+    ],
+    "action_names": [
+        "SwitchIngress.dip_hit"
+    ],
+    "initial_entries": [
+        {
+            "keys": [
+                {
+                    "name": "hdr.ipv4.src_addr",
+                    "value": {
+                        "raw": "10.0.2.2",
+                        "type": "ipv4"
+                    },
+                    "match_type": "exact"
+                },
+                {
+                    "name": "hdr.tcp.src_port",
+                    "value": 80,
+                    "match_type": "exact"
+                }
+            ],
+            "action_name": "SwitchIngress.dip_hit"
+        },
+        {
+            "keys": [
+                {
+                    "name": "hdr.ipv4.src_addr",
+                    "value": {
+                        "raw": "10.0.2.3",
+                        "type": "ipv4"
+                    },
+                    "match_type": "exact"
+                },
+                {
+                    "name": "hdr.tcp.src_port",
+                    "value": 80,
+                    "match_type": "exact"
+                }
+            ],
+            "action_name": "SwitchIngress.dip_hit"
+        }
+    ]
+}

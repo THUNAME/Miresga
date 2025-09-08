@@ -1,14 +1,100 @@
-[
-    {
-        "opcode": 1,
-        "target_proto_addr": 167772161,
-        "mac_prefix": 11250603,
-        "mac_suffix": 13487565
-    },
-    {
-        "opcode": 1,
-        "target_proto_addr": 167772417,
-        "mac_prefix": 13487565,
-        "mac_suffix": 11250603
-    }
-]
+{
+    "table_name": "SwitchIngress.arp_table",
+    "key_names": [
+        {
+            "name": "hdr.arp.opcode",
+            "match_type": "exact"
+        },
+        {
+            "name": "hdr.arp.target_proto_addr",
+            "match_type": "exact"
+        }
+    ],
+    "action_name": "SwitchIngress.reply_arp",
+    "data_names": [
+        "arp_mac"
+    ],
+    "initial_entries": [
+        {
+            "keys": [
+                {
+                    "name": "hdr.arp.opcode",
+                    "value": 1,
+                    "match_type": "exact"
+                },
+                {
+                    "name": "hdr.arp.target_proto_addr",
+                    "value": {
+                        "raw": "10.0.0.1",
+                        "type": "ipv4"
+                    },
+                    "match_type": "exact"
+                }
+            ],
+            "action_name": "SwitchIngress.reply_arp",
+            "datas": [
+                {
+                    "name": "arp_mac",
+                    "value": {
+                        "raw": "00:02:00:00:03:00",
+                        "type": "mac"
+                    }
+                }
+            ]
+        },
+        {
+            "keys": [
+                {
+                    "name": "hdr.arp.opcode",
+                    "value": 1,
+                    "match_type": "exact"
+                },
+                {
+                    "name": "hdr.arp.target_proto_addr",
+                    "value": {
+                        "raw": "10.0.2.1",
+                        "type": "ipv4"
+                    },
+                    "match_type": "exact"
+                }
+            ],
+            "action_name": "SwitchIngress.reply_arp",
+            "datas": [
+                {
+                    "name": "arp_mac",
+                    "value": {
+                        "raw": "00:06:00:00:03:00",
+                        "type": "mac"
+                    }
+                }
+            ]
+        },
+        {
+            "keys": [
+                {
+                    "name": "hdr.arp.opcode",
+                    "value": 2,
+                    "match_type": "exact"
+                },
+                {
+                    "name": "hdr.arp.target_proto_addr",
+                    "value": {
+                        "raw": "10.0.1.1",
+                        "type": "ipv4"
+                    },
+                    "match_type": "exact"
+                }
+            ],
+            "action_name": "SwitchIngress.reply_arp",
+            "datas": [
+                {
+                    "name": "arp_mac",
+                    "value": {
+                        "raw": "00:04:00:00:00:01",
+                        "type": "mac"
+                    }
+                }
+            ]
+        }
+    ]
+}

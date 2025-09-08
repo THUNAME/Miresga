@@ -12,15 +12,16 @@ class FlowTable
 {
 private:
     inline static FlowTable* _instance = nullptr;
-    FlowMap_t _flow_map;
+    FlowMap_t _flow_map[256];
     FlowTable();
     ~FlowTable();
 public:
     static FlowTable* get_instance();
     static void destroy_instance();
-    void insert_flow(uint64_t key, MiresgaFlowData_t* flow_data);
-    MiresgaFlowData_t* get_flow(uint64_t key);
-    void remove_flow(uint64_t key);
+    void insert_flow(MiresgaOFTKey_t& key, MiresgaFlowData_t* flow_data);
+    MiresgaFlowData_t* get_flow(MiresgaOFTKey_t& key);
+    void remove_flow(MiresgaOFTKey_t& key);
+    std::vector<MiresgaOFTEntry_t> get_crc_entries(uint8_t crc);
 };
 
 #endif

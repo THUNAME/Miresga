@@ -14,27 +14,66 @@ void ControllerClient::_update_info()
     OperationType_t op_type = static_cast<OperationType_t>(_recv_buffer[0]);
     switch(op_type) {
         case OperationType_t::INIT_RDMA_ENGINE: {
-            uint8_t remote_id = _recv_buffer[1];
-            char* update_info = _rdma_manager->add_engine(remote_id);
-            _connector->send_message(update_info, sizeof(RDMAInfo_t) + 1);
-            delete update_info;
+            uint8_t num_add = _recv_buffer[1];
+            size_t now_bytes = 2;
+            std::string msg;
+            msg.append(1, static_cast<char>(OperationType_t::UPDATE_RDMA_INFO));
+            msg.append(1, static_cast<char>(num_add));
+            for (uint8_t i = 0; i < num_add; ++i) {
+                uint8_t remote_id = _recv_buffer[now_bytes];
+                now_bytes++;
+                msg.append(_rdma_manager->add_engine(remote_id));
+            }
+            _connector->send_message(msg.data(), msg.size());
             break;
         }
         case OperationType_t::UPDATE_RDMA_INFO: {
-            uint8_t remote_id = _recv_buffer[1];
-            RDMAInfo_t* remote_rdma_info = new RDMAInfo_t;
-            memcpy(remote_rdma_info, _recv_buffer + 2, sizeof(RDMAInfo_t));
-            _rdma_manager->update_engine(remote_id, remote_rdma_info);
+            uint8_t num_update = _recv_buffer[1];
+            size_t now_bytes = 2;
+            for (uint8_t i = 0; i < num_update; ++i) {
+                uint8_t remote_id = _recv_buffer[now_bytes];
+                now_bytes++;
+                uint8_t num_crcs = _recv_buffer[now_bytes];
+                now_bytes++;
+                std::vector<uint8_t> crcs(_recv_buffer + now_bytes, _recv_buffer + now_bytes + num_crcs);
+                now_bytes += num_crcs;
+                RDMAInfo_t* remote_rdma_info = new RDMAInfo_t;
+                memcpy(remote_rdma_info, _recv_buffer + now_bytes, sizeof(RDMAInfo_t));
+                now_bytes += sizeof(RDMAInfo_t);
+                _rdma_manager->update_engine(remote_id, remote_rdma_info, crcs);
+            }
+            std::string complete_msg = "";
+            complete_msg.append(1, static_cast<char>(OperationType_t::COMPLETE));
+            _connector->send_message(complete_msg.data(), complete_msg.size());
             break;
         }
         case OperationType_t::RDMA_START: {
-            uint8_t remote_id = _recv_buffer[1];
-            _rdma_manager->start_engine(remote_id);
+            uint8_t num_start = _recv_buffer[1];
+            size_t now_bytes = 2;
+            for (uint8_t i = 0; i < num_start; ++i) {
+                uint8_t remote_id = _recv_buffer[now_bytes];
+                now_bytes++;
+                _rdma_manager->start_engine(remote_id);
+            }
             break;
         }
         case OperationType_t::RDMA_STOP: {
             uint8_t remote_id = _recv_buffer[1];
-            _rdma_manager->remove_engine(remote_id);
+            uint8_t num_update_id = _recv_buffer[2];
+            size_t now_bytes = 3;
+            std::unordered_map<uint8_t, uint8_t> crc_2_id;
+            for (uint8_t i = 0; i < num_update_id; ++i) {
+                uint8_t update_id = _recv_buffer[now_bytes];
+                now_bytes++;
+                uint8_t num_crcs = _recv_buffer[now_bytes];
+                now_bytes++;
+                for (uint8_t j = 0; j < num_crcs; ++j) {
+                    uint8_t crc = _recv_buffer[now_bytes];
+                    now_bytes++;
+                    crc_2_id[crc] = update_id;
+                }
+            }
+            _rdma_manager->remove_engine(remote_id, crc_2_id);
             break;
         }
         case OperationType_t::UPDATE_RULE: {
@@ -84,6 +123,18 @@ void ControllerClient::_update_info()
             memcpy(server_info, _recv_buffer + 1, sizeof(ServerInfo_t));
             _rule_manager->set_virtual_server_info(server_info);
             break;
+        }
+        case SYNC_OLD_DATA: {
+            uint8_t remote_id = _recv_buffer[1];
+            uint8_t num_crcs = _recv_buffer[2];
+            size_t now_bytes = 3;
+            for (uint8_t i = 0; i < num_crcs; ++i) {
+                uint8_t crc = _recv_buffer[now_bytes];
+                now_bytes++;
+                std::vector<MiresgaOFTEntry_t> crc_entries = _flow_table->get_crc_entries(crc);
+                _rdma_manager->add_old_flow_data(remote_id, crc_entries);
+            }
+
         }
         case OK: {
             break;
@@ -152,8 +203,8 @@ void ControllerClient::_main_loop()
                                 MiresgaFlowData_t* data = new MiresgaFlowData_t();
                                 data->entry_data = *entry;
                                 data->state = static_cast<FlowState_t>((entry->data.flow_state) ? FlowState_t::OFFLOAD : FlowState_t::ESTABLISHED);
-                                _flow_table->remove_flow(packed_key(&entry->key));
-                                _flow_table->insert_flow(packed_key(&entry->key), data);
+                                _flow_table->remove_flow(data->entry_data.key);
+                                _flow_table->insert_flow(data->entry_data.key, data);
                             }
                         }
                         if (del_key > 0) {
@@ -161,7 +212,7 @@ void ControllerClient::_main_loop()
                                 MiresgaOFTKey_t* key = reinterpret_cast<MiresgaOFTKey_t*>(
                                     reinterpret_cast<uint8_t*>(recv_buffer) + offset);
                                 offset += sizeof(MiresgaOFTKey_t);
-                                _flow_table->remove_flow(packed_key(key));
+                                _flow_table->remove_flow(*key);
                             }
                         }
                     }
@@ -171,7 +222,8 @@ void ControllerClient::_main_loop()
     }
 }
 
-ControllerClient::ControllerClient(char* switch_ip, uint16_t switch_port, char* rdma_dev_name)
+ControllerClient::ControllerClient(char* switch_ip, uint16_t switch_port, 
+                                   char* rdma_dev_name)
 {
     _epoll_fd = epoll_create1(0);
     _exit_flag = false;
@@ -190,7 +242,6 @@ ControllerClient::ControllerClient(char* switch_ip, uint16_t switch_port, char* 
 
     _client_thread = std::thread(&ControllerClient::_main_loop, this);
     _client_thread.detach();
-
     epoll_event sock_ev;
     sock_ev.events = EPOLLIN;
     sock_ev.data.fd = _connector->socket;
@@ -208,9 +259,9 @@ ControllerClient::ControllerClient(char* switch_ip, uint16_t switch_port, char* 
 
     struct itimerspec offload_timer_value;
     offload_timer_value.it_value.tv_sec = 0;
-    offload_timer_value.it_value.tv_nsec = 100000000;  // 0.1 seconds in nanoseconds
+    offload_timer_value.it_value.tv_nsec = 10000000;  // 0.01 seconds in nanoseconds
     offload_timer_value.it_interval.tv_sec = 0;
-    offload_timer_value.it_interval.tv_nsec = 100000000;  // 0.1 seconds in nanoseconds
+    offload_timer_value.it_interval.tv_nsec = 10000000;  // 0.01 seconds in nanoseconds
 
     if (timerfd_settime(_offload_timerfd, 0, &offload_timer_value, NULL) == -1) {
         throw std::runtime_error("Failed to set offload timer");
@@ -252,7 +303,8 @@ ControllerClient::~ControllerClient()
     stop();
 }
 
-void ControllerClient::init_controller_client(char* switch_ip, uint16_t switch_port, char* rdma_dev_name)
+void ControllerClient::init_controller_client(char* switch_ip, uint16_t switch_port, 
+                                              char* rdma_dev_name)
 {
     if (_instance == nullptr) {
         _instance = new ControllerClient(switch_ip, switch_port, rdma_dev_name);

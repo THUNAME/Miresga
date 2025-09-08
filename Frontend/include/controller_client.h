@@ -35,10 +35,12 @@ private:
     ControllerClient() = delete;
     ControllerClient(ControllerClient const&) = delete;
     ControllerClient& operator=(ControllerClient const&) = delete;
-    ControllerClient(char* switch_ip, uint16_t switch_port, char* rdma_dev_name);
+    ControllerClient(char* switch_ip, uint16_t switch_port, 
+                     char* rdma_dev_name);
     ~ControllerClient();
 public:
-    static void init_controller_client(char* switch_ip, uint16_t switch_port, char* rdma_dev_name);
+    static void init_controller_client(char* switch_ip, uint16_t switch_port, 
+                                       char* rdma_dev_name);
     static ControllerClient* get_instance();
     static void destroy_instance();
     void stop();

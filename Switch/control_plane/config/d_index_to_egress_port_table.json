@@ -1,0 +1,79 @@
+{
+    "table_name": "SwitchIngress.d_index_to_egress_port_table",
+    "key_names": [
+        {
+            "name": "hdr.bridged.index",
+            "match_type": "exact"
+        }
+    ],
+    "action_names": [
+        "SwitchIngress.set_egress_port"
+    ],
+    "data_names": [
+        "src_mac",
+        "dst_mac",
+        "dst_port"
+    ],
+    "initial_entries": [
+        {
+            "keys": [
+                {
+                    "name": "hdr.bridged.index",
+                    "value": 0,
+                    "match_type": "exact"
+                }
+            ],
+            "action_name": "SwitchIngress.set_egress_port",
+            "datas": [
+                {
+                    "name": "src_mac",
+                    "value": {
+                        "raw": "00:06:00:00:03:00",
+                        "type": "mac"
+                    }
+                },
+                {
+                    "name": "dst_mac",
+                    "value": {
+                        "raw": "00:06:00:00:03:01",
+                        "type": "mac"
+                    }
+                },
+                {
+                    "name": "dst_port",
+                    "value": 1
+                }
+            ]
+        },
+        {
+            "keys": [
+                {
+                    "name": "hdr.bridged.index",
+                    "value": 1,
+                    "match_type": "exact"
+                }
+            ],
+            "action_name": "SwitchIngress.set_egress_port",
+            "datas": [
+                {
+                    "name": "src_mac",
+                    "value": {
+                        "raw": "00:06:00:00:03:00",
+                        "type": "mac"
+                    }
+                },
+                {
+                    "name": "dst_mac",
+                    "value": {
+                        "raw": "00:06:00:00:03:02",
+                        "type": "mac"
+                    }
+                },
+                {
+                    "name": "dst_port",
+                    "value": 1
+                }
+            ]
+        }
+    ]
+}

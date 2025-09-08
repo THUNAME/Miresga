@@ -271,11 +271,9 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
         payload_len = ntohs(ip_hdr->total_length) - header_size;
         uint8_t src_crc = _calc_crc8(ntohl(ip_hdr->src_addr), ntohs(tcp_hdr->src_port));
         uint8_t dst_crc = _calc_crc8(ntohl(ip_hdr->dst_addr), ntohs(tcp_hdr->dst_port));
-        MiresgaOFTKey_t src_oft_key = {src_crc, 0, ip_hdr->src_addr, tcp_hdr->src_port};
-        MiresgaOFTKey_t dst_oft_key = {dst_crc, 0, ip_hdr->dst_addr, tcp_hdr->dst_port};
-        uint64_t src_key = packed_key(&src_oft_key);
-        uint64_t dst_key = packed_key(&dst_oft_key);
-        MiresgaFlowData_t* flow_data = _flow_table->get_flow(src_key);
+        MiresgaOFTKey_t src_oft_key = {0, src_crc, ip_hdr->src_addr, tcp_hdr->src_port};
+        MiresgaOFTKey_t dst_oft_key = {0, dst_crc, ip_hdr->dst_addr, tcp_hdr->dst_port};
+        MiresgaFlowData_t* flow_data = _flow_table->get_flow(src_oft_key);
         if (flow_data != nullptr) {
             // Process inbound.
             if (tcp_hdr->tcp_flags & RTE_TCP_RST_FLAG) {
@@ -290,7 +288,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                     num_send_pkts++;
                     _rdma_manager->del_flow_data(&src_oft_key);
                 }
-                _flow_table->remove_flow(src_key);
+                _flow_table->remove_flow(src_oft_key);
             }
             else if(tcp_hdr->tcp_flags & RTE_TCP_FIN_FLAG) {
                 _get_outbound_rst_pkt(recv_mbufs[i], send_mbufs[num_send_pkts]);
@@ -305,13 +303,14 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                     num_send_pkts++;
                     _rdma_manager->del_flow_data(&src_oft_key);
                 }
-                _flow_table->remove_flow(src_key);
+                _flow_table->remove_flow(src_oft_key);
             }
             else {
                 switch(flow_data->state) {
                     case FlowState_t::ESTABLISHED:
                     case FlowState_t::OFFLOAD: {
                         if (payload_len > 0) {
+                            // Recieve new payload, parse it and check if we need to change the backend server.
                             std::string payload((char*)tcp_hdr + (tcp_hdr->data_off >> 4) * 4, 
                                                 payload_len);
                             // Note: Here is an simple example. Users may implement more complex payload parsing logic here.
@@ -320,6 +319,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                             if (_rule_manager->get_rule(parsed_payload, &rule) != MiresgaStatus_t::OK) {
                                 break;
                             }
+                            // Backend server changed. Send RST to the old backend server and SYN to the new backend server.
                             if (rule->d_index != flow_data->entry_data.data.d_index) {
                                 _get_inbound_rst_pkt(recv_mbufs[i], flow_data->entry_data.data.d_index, send_mbufs[num_send_pkts]);
                                 num_send_pkts++;
@@ -338,6 +338,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                                 flow_data->recv_pkt_size = recv_mbufs[i]->data_len;
                                 memcpy(flow_data->recv_pkt, rte_pktmbuf_mtod(recv_mbufs[i], char*), recv_mbufs[i]->data_len);
                             }
+                            // Backend server not changed. Just forward the packet.
                             else {
                                 _get_inbound_normal_pkt(recv_mbufs[i], flow_data->entry_data.data.d_index, send_mbufs[num_send_pkts]);
                                 num_send_pkts++;
@@ -379,7 +380,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
             }
             continue;
         }
-        flow_data = _flow_table->get_flow(dst_key);
+        flow_data = _flow_table->get_flow(dst_oft_key);
         if (flow_data != nullptr) {
             // Process outbound.
             if (tcp_hdr->tcp_flags & RTE_TCP_RST_FLAG) {
@@ -392,7 +393,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                 // Send RST to the client.
                 _get_outbound_normal_pkt(recv_mbufs[i], send_mbufs[num_send_pkts]);
                 num_send_pkts++;
-                _flow_table->remove_flow(src_key);
+                _flow_table->remove_flow(src_oft_key);
             }
             else if(tcp_hdr->tcp_flags & RTE_TCP_FIN_FLAG) {
                 // Send RST to the client.
@@ -406,7 +407,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                     _entry_manager->del_entry(_del_token, src_oft_key);
                 }
                 _rdma_manager->del_flow_data(&src_oft_key);
-                _flow_table->remove_flow(src_key);
+                _flow_table->remove_flow(src_oft_key);
             }
             else
             {
@@ -462,7 +463,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
         flow_data->recv_pkt = static_cast<char*>(rte_malloc_socket("recv_pkt", recv_mbufs[i]->data_len, 0, _socket_id));
         flow_data->recv_pkt_size = recv_mbufs[i]->data_len;
         memcpy(flow_data->recv_pkt, rte_pktmbuf_mtod(recv_mbufs[i], char*), recv_mbufs[i]->data_len);
-        _flow_table->insert_flow(src_key, flow_data);
+        _flow_table->insert_flow(src_oft_key, flow_data);
     }
     if (num_send_pkts > 0) {
         _send_pkts(send_mbufs, num_send_pkts);

@@ -4,3 +4,6 @@
 [submodule "Frontend/third_party/json"]
 	path = Frontend/third_party/json
 	url = https://github.com/nlohmann/json.git
+[submodule "Switch/control_plane/third_party/json"]
+	path = Switch/control_plane/third_party/json
+	url = https://github.com/nlohmann/json.git
