@@ -53,6 +53,7 @@ std::vector<KeyInput_t> SwitchClient_t::_parse_keys(const nlohmann::json& key_js
             throw std::invalid_argument("Invalid match type: " + match_type_str);
         }
     }
+    return keys;
 }
 
 TableInfo_t* SwitchClient_t::_init_table_from_config(std::string config) {
@@ -60,21 +61,21 @@ TableInfo_t* SwitchClient_t::_init_table_from_config(std::string config) {
     nlohmann::json config_json;
     ifs >> config_json;
     std::string table_name = config_json["table_name"];
-    std::vector<std::pair<std::string, KeyMatchType_t>> key_names;
+    std::vector<std::pair<std::string, bf_rt_key_field_type_t>> key_names;
     auto key_config = config_json["key_names"];
     assert(key_config.is_array());
     for (auto& key_item : key_config) {
         std::string key_name = key_item["name"];
         std::string match_type_str = key_item["match_type"];
-        KeyMatchType_t match_type;
+        bf_rt_key_field_type_t match_type;
         if (match_type_str == "exact") {
-            match_type = KeyMatchType_t::EXACT;
+            match_type = bf_rt_key_field_type_t::EXACT;
         } else if (match_type_str == "lpm") {
-            match_type = KeyMatchType_t::LPM;
+            match_type = bf_rt_key_field_type_t::LPM;
         } else if (match_type_str == "ternary") {
-            match_type = KeyMatchType_t::TERNARY;
+            match_type = bf_rt_key_field_type_t::TERNARY;
         } else if (match_type_str == "range") {
-            match_type = KeyMatchType_t::RANGE;
+            match_type = bf_rt_key_field_type_t::RANGE;
         } else {
             throw std::invalid_argument("Invalid match type: " + match_type_str);
         }

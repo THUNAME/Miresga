@@ -4,6 +4,9 @@
 #define TIMER_PRESENTOR 0x0b0b0b0b
 
 #include "client.h"
+#include <nlohmann/json.hpp>
+#include <fstream>
+#include <sstream>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/epoll.h>
@@ -14,6 +17,7 @@
 #include <unordered_map>
 #include <iostream>
 #include <vector>
+#include <queue>
 #include <thread>
 
 #define MAX_EPOLL_EVENTS 16
@@ -51,6 +55,13 @@ struct RuleEntry_t {
     uint8_t d_index;
 };
 
+struct ServerInfo_t
+{
+    uint8_t        mac[6];
+    uint32_t       ip;    // in network byte order
+    uint16_t       port;  // in network byte order
+};
+
 class FrontendController_t {
 private:
     inline static FrontendController_t* _instance = nullptr;
@@ -67,22 +78,26 @@ private:
     std::unordered_map<uint8_t, int> _id_2_socket_fd;
     std::unordered_map<int, uint8_t> _socket_fd_2_id;
     std::unordered_map<uint8_t, std::unordered_map<uint8_t, RDMAInfo_t>> _id_2_rdma_info;
-    std::unordered_map<uint8_t, std::vector<uint8_t>> _id_2_crcs;
+    std::unordered_map<uint8_t, size_t> _id_2_num_crcs;
     std::unordered_map<uint8_t, std::vector<uint8_t>> _id_2_need_changed_crcs;
     std::unordered_map<uint8_t, std::unordered_map<uint8_t, std::vector<uint8_t>>> _id_2_sync_crcs;
-    std::unordered_set<uint8_t> _active_ids;
-    std::unordered_set<uint8_t> _idle_ids;
+    std::unordered_map<uint8_t, ServerInfo_t> _d_index_2_backend_server_info;
+    std::vector<uint8_t> _active_ids;
+    std::queue<uint8_t> _idle_ids;
     std::unordered_set<uint8_t> _wait_init_ids;
     std::unordered_set<uint8_t> _wait_rdma_info_ids;
-    
-    ControllerState_t _state;
-    FrontendController_t();
+    ServerInfo_t _virtual_server_info;
+    FrontendController_t(std::string config_path);
     ~FrontendController_t();
+    std::string _serializing_rule_table();
+    std::string _serializing_d_index_table();
+    std::string _serializing_v_info();
     void _main_loop();
     void _add_frontend(uint8_t id);
     void _remove_frontend(uint8_t id);
     void _update_rdma_info();
 public:
+    static void init_frontend_controller(std::string config_path);
     static FrontendController_t* get_instance();
     void start();
     void stop();

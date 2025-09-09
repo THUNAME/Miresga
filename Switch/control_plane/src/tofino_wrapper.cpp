@@ -63,8 +63,8 @@ void SwitchInfo_t::init_ports(std::vector<PortInfo_t> port_info_list) {
     }
 }
 
-bf_rt_table_hdl* SwitchInfo_t::get_table_hdl(std::string table_name) {
-    bf_rt_table_hdl* table_hdl = new bf_rt_table_hdl;
+const bf_rt_table_hdl* SwitchInfo_t::get_table_hdl(std::string table_name) {
+    const bf_rt_table_hdl* table_hdl = new bf_rt_table_hdl;
     if (bf_rt_table_from_name_get(_bf_rt_info, 
                                   table_name.data(), 
                                   &table_hdl) != BF_SUCCESS) {
@@ -183,7 +183,7 @@ void SwitchInfo_t::clear_table(const bf_rt_table_hdl* table_hdl) {
     }
 }
 
-TableInfo_t::TableInfo_t(std::string table_name, std::vector<std::pair<std::string, KeyMatchType_t>> key_names, 
+TableInfo_t::TableInfo_t(std::string table_name, std::vector<std::pair<std::string, bf_rt_key_field_type_t>> key_names, 
                          std::vector<std::string> data_names, std::vector<std::string> action_names, bool enable_batch)
 {
     _enable_batch = enable_batch;
@@ -258,29 +258,29 @@ void TableInfo_t::add_entry(std::vector<std::vector<KeyInput_t>> key_field_value
             auto& key_hdl = _key_hdls[i];
             for (const auto& key_field_value : key_field_values[i]) {
                 bf_rt_id_t key_id = _key_name_2_id_map[key_field_value.name].first;
-                KeyMatchType_t match_type = _key_name_2_id_map[key_field_value.name].second;
+                bf_rt_key_field_type_t match_type = _key_name_2_id_map[key_field_value.name].second;
                 uint64_t value = key_field_value.value;
                 bf_status_t status;
                 switch (match_type) {
-                    case EXACT:
+                    case bf_rt_key_field_type_t::EXACT:
                         status = bf_rt_key_field_set_value(key_hdl, key_id, value);
                         if (status != BF_SUCCESS) {
                             throw std::runtime_error("Failed to set key field value for " + key_field_value.name);
                         }
                         break;
-                    case LPM:
+                    case bf_rt_key_field_type_t::LPM:
                         status = bf_rt_key_field_set_value_lpm(key_hdl, key_id, value, ((LPMKeyInput_t*)(&key_field_value))->prefix_len);
                         if (status != BF_SUCCESS) {
                             throw std::runtime_error("Failed to set LPM key field value for " + key_field_value.name);
                         }
                         break;
-                    case TERNARY:
+                    case bf_rt_key_field_type_t::TERNARY:
                         status = bf_rt_key_field_set_value_and_mask(key_hdl, key_id, value, ((TernaryKeyInput_t*)(&key_field_value))->mask);
                         if (status != BF_SUCCESS) {
                             throw std::runtime_error("Failed to set TERNARY key field value for " + key_field_value.name);
                         }
                         break;
-                    case RANGE:
+                    case bf_rt_key_field_type_t::RANGE:
                         status = bf_rt_key_field_set_value_range(key_hdl, key_id, ((RangeKeyInput_t*)(&key_field_value))->start, 
                                                                  ((RangeKeyInput_t*)(&key_field_value))->end);
                         if (status != BF_SUCCESS) {
@@ -321,29 +321,29 @@ void TableInfo_t::delete_entry(std::vector<std::vector<KeyInput_t>> key_field_va
             auto& key_hdl = _key_hdls[i];
             for (const auto& key_field_value : key_field_values[i]) {
                 bf_rt_id_t key_id = _key_name_2_id_map[key_field_value.name].first;
-                KeyMatchType_t match_type = _key_name_2_id_map[key_field_value.name].second;
+                bf_rt_key_field_type_t match_type = _key_name_2_id_map[key_field_value.name].second;
                 uint64_t value = key_field_value.value;
                 bf_status_t status;
                 switch (match_type) {
-                    case EXACT:
+                    case bf_rt_key_field_type_t::EXACT:
                         status = bf_rt_key_field_set_value(key_hdl, key_id, value);
                         if (status != BF_SUCCESS) {
                             throw std::runtime_error("Failed to set key field value for " + key_field_value.name);
                         }
                         break;
-                    case LPM:
+                    case bf_rt_key_field_type_t::LPM:
                         status = bf_rt_key_field_set_value_lpm(key_hdl, key_id, value, ((LPMKeyInput_t*)(&key_field_value))->prefix_len);
                         if (status != BF_SUCCESS) {
                             throw std::runtime_error("Failed to set LPM key field value for " + key_field_value.name);
                         }
                         break;
-                    case TERNARY:
+                    case bf_rt_key_field_type_t::TERNARY:
                         status = bf_rt_key_field_set_value_and_mask(key_hdl, key_id, value, ((TernaryKeyInput_t*)(&key_field_value))->mask);
                         if (status != BF_SUCCESS) {
                             throw std::runtime_error("Failed to set TERNARY key field value for " + key_field_value.name);
                         }
                         break;
-                    case RANGE:
+                    case bf_rt_key_field_type_t::RANGE:
                         status = bf_rt_key_field_set_value_range(key_hdl, key_id, ((RangeKeyInput_t*)(&key_field_value))->start, 
                                                                  ((RangeKeyInput_t*)(&key_field_value))->end);
                         if (status != BF_SUCCESS) {
@@ -370,11 +370,11 @@ void TableInfo_t::modify_entry(std::vector<std::vector<KeyInput_t>> key_field_va
             auto& key_hdl = _key_hdls[i];
             for (const auto& key_field_value : key_field_values[i]) {
                 bf_rt_id_t key_id = _key_name_2_id_map[key_field_value.name].first;
-                KeyMatchType_t match_type = _key_name_2_id_map[key_field_value.name].second;
+                bf_rt_key_field_type_t match_type = _key_name_2_id_map[key_field_value.name].second;
                 uint64_t value = key_field_value.value;
                 bf_status_t status;
                 switch (match_type) {
-                    case EXACT:
+                    case bf_rt_key_field_type_t::EXACT:
                         status = bf_rt_key_field_set_value(key_hdl, key_id, value);
                         if (status != BF_SUCCESS) {
                             throw std::runtime_error("Failed to set key field value for " + key_field_value.name);

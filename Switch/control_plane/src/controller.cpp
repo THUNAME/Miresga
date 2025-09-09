@@ -1,6 +1,154 @@
 #include "controller.h"
 
+std::string FrontendController_t::_serializing_rule_table() {
+    std::string msg;
+    msg.append(1, static_cast<char>(OperationType_t::UPDATE_RULE));
+    msg.append(1, static_cast<char>(_rule_table.size()));
+    for (const auto& [key, rule_entry] : _rule_table) {
+        msg.append(key);
+        msg.append(1, '\0');
+        msg.append(1, static_cast<char>(rule_entry.offload_flag));
+        msg.append(1, static_cast<char>(rule_entry.d_index));
+    }
+    return msg;
+}
+
+std::string FrontendController_t::_serializing_d_index_table() {
+    std::string msg;
+    msg.append(1, static_cast<char>(OperationType_t::UPDATE_D_INDEX));
+    msg.append(1, static_cast<char>(_d_index_2_backend_server_info.size()));
+    for (const auto& [d_index, server_info] : _d_index_2_backend_server_info) {
+        msg.append(1, static_cast<char>(d_index));
+        msg.append(reinterpret_cast<const char*>(&server_info), sizeof(ServerInfo_t));
+    }
+    return msg;
+}
+
+std::string FrontendController_t::_serializing_v_info() {
+    std::string msg;
+    msg.append(1, static_cast<char>(OperationType_t::UPDATE_V_INFO));
+    msg.append(reinterpret_cast<const char*>(&_virtual_server_info), sizeof(ServerInfo_t));
+    return msg;
+}
+
+void FrontendController_t::_add_frontend(uint8_t id) {
+    _updating_id = id;
+    size_t num_active_id = _active_ids.size();
+    std::unordered_map<uint8_t, EgressPortEntry_t> crc_2_egressportentry;
+    // If no active id, just add all crcs to this id. And no need to sync data or start RDMA.
+    if (num_active_id == 0) {
+        _id_2_num_crcs[id] = 256;
+        for (uint8_t crc = 0; crc < 256; crc++) {
+            crc_2_egressportentry[crc] = _id_2_egress_port[id];
+        }
+        _active_ids.push_back(id);
+        _state = NORMAL;
+        _client->start_updating(crc_2_egressportentry);
+        _client->finish_updating();
+        return;
+    }
+    size_t num_each_if_add_crcs = 256 / (num_active_id + 1);
+    _id_2_sync_crcs[id] = std::unordered_map<uint8_t, std::vector<uint8_t>>();
+    if (num_active_id == 1) {
+        uint8_t other_id = _active_ids[0];
+        _id_2_sync_crcs[other_id] = std::unordered_map<uint8_t, std::vector<uint8_t>>();
+        _id_2_sync_crcs[other_id][id] = std::vector<uint8_t>();
+        _id_2_sync_crcs[id][other_id] = std::vector<uint8_t>();
+        for (size_t i = 0; i < num_each_if_add_crcs; ++i) {
+            _id_2_sync_crcs[id][other_id].push_back(i);
+            _id_2_sync_crcs[other_id][id].push_back(i + num_each_if_add_crcs);
+        }
+        _id_2_num_crcs[id] = 128;
+        _id_2_num_crcs[other_id] = 128;
+        _id_2_need_changed_crcs[other_id] = _id_2_sync_crcs[id][other_id];
+    }
+    else {
+        size_t num_if_add_extra = 256 % (num_active_id + 1);
+        size_t num_each_if_not_add_crcs = 256 / num_active_id;
+        size_t extra = 256 % num_active_id;
+        // Update sync map;
+        // Each active id gives some crcs to new id.
+        for (size_t idx = 0; idx < num_active_id; ++idx) {
+            // Calculate how many crcs this active id should give to new id
+            uint8_t other_id = _active_ids[idx];
+            size_t target_crc_size = num_each_if_add_crcs;
+            if (idx < num_if_add_extra) {
+                target_crc_size++;
+            }
+            size_t need_remove_size = _id_2_num_crcs[other_id] - target_crc_size;
+            // From each sync_crcs remove some crcs to new id
+            size_t num_each_sync_crcs_remove = need_remove_size / (num_active_id - 1);
+            size_t extra_sync = need_remove_size % (num_active_id - 1);
+            _id_2_sync_crcs[id][other_id] = std::vector<uint8_t>();
+            _id_2_sync_crcs[other_id][id] = std::vector<uint8_t>();
+            size_t num_each_sync_crcs = target_crc_size / num_active_id;
+            size_t extra_each_sync = target_crc_size % num_active_id;
+            for (size_t j = 0; j < num_active_id - 1; ++j) {
+                size_t new_idx = (idx + 1 + j) % num_active_id;
+                uint8_t sync_id = _active_ids[new_idx];
+                size_t remove_size = num_each_sync_crcs_remove;
+                if (j < extra_sync) {
+                    remove_size++;
+                }
+                _id_2_sync_crcs[id][other_id].insert(_id_2_sync_crcs[id][other_id].end(), 
+                                                     _id_2_sync_crcs[other_id][sync_id].begin(),
+                                                     _id_2_sync_crcs[other_id][sync_id].begin() + remove_size);
+                _id_2_sync_crcs[other_id][sync_id].erase(_id_2_sync_crcs[other_id][sync_id].begin(),
+                                                         _id_2_sync_crcs[other_id][sync_id].begin() + remove_size);
+                size_t target_size = num_each_sync_crcs;
+                if (j < extra_each_sync) {
+                    target_size++;
+                }
+                size_t now_sync_size = _id_2_sync_crcs[other_id][sync_id].size();
+                assert(now_sync_size >= target_size);
+                size_t need_change_size = now_sync_size - target_size;
+                if (need_change_size > 0) {
+                    _id_2_sync_crcs[other_id][id].insert(_id_2_sync_crcs[other_id][id].end(),
+                                                         _id_2_sync_crcs[other_id][sync_id].begin(),
+                                                         _id_2_sync_crcs[other_id][sync_id].begin() + need_change_size);
+                    _id_2_sync_crcs[other_id][sync_id].erase(_id_2_sync_crcs[other_id][sync_id].begin(),
+                                                             _id_2_sync_crcs[other_id][sync_id].begin() + need_change_size);
+                }
+            }
+            _id_2_need_changed_crcs[other_id] = _id_2_sync_crcs[id][other_id];
+            _id_2_num_crcs[other_id] -= need_remove_size;
+            _id_2_num_crcs[id] += need_remove_size;
+        }
+    }
+    _active_ids.push_back(id);
+    for (auto active_id : _active_ids) {
+        std::string init_msg;
+        init_msg.append(1, static_cast<char>(INIT_RDMA_ENGINE));
+        int socket_fd = _id_2_socket_fd[active_id];
+        if (active_id != id) {
+            init_msg.append(1, static_cast<char>(1));
+            init_msg.append(1, static_cast<char>(id));
+        } else {
+            init_msg.append(1, static_cast<char>(num_active_id));
+            init_msg.append(reinterpret_cast<const char*>(_active_ids.data()), num_active_id);
+        }
+        if (send(socket_fd, init_msg.c_str(), init_msg.size(), 0) < 0) {
+            throw std::runtime_error("Failed to send init rdma engine message");
+        }
+    }
+    for (auto [active_id, id_2_crc_map] : _id_2_sync_crcs) {
+        for (auto [other_id, crcs] : id_2_crc_map) {
+            for (auto crc : crcs) {
+                crc_2_egressportentry[crc] = _id_2_egress_port[active_id];
+            }
+        }
+    }
+    _client->start_updating(crc_2_egressportentry);
+    _state = WAIT_RDMA_INFO;
+}
+
 void FrontendController_t::_remove_frontend(uint8_t id) {
+    auto it = std::find(_active_ids.begin(), _active_ids.end(), id);
+    if (it == _active_ids.end()) {
+        // Maybe already removed, do not throw error.
+        return;
+    }
+    _active_ids.erase(it);
     int fd = _id_2_socket_fd[id];
     if (epoll_ctl(_epoll_fd, EPOLL_CTL_DEL, fd, NULL) < 0) {
         throw std::runtime_error("Failed to remove connection from epoll");
@@ -8,9 +156,8 @@ void FrontendController_t::_remove_frontend(uint8_t id) {
     close(fd);
     _socket_fd_2_id.erase(fd);
     _id_2_socket_fd.erase(id);
-    _active_ids.erase(id);
-    _idle_ids.insert(id);
-    size_t num_crc = _id_2_crcs[id].size();
+    _idle_ids.push(id);
+    size_t num_crc = _id_2_num_crcs[id];
     size_t num_active_id = _active_ids.size();
     if (num_active_id == 0) {
         std::cout << "All frontends disconnected, reset to INIT state" << std::endl;
@@ -18,53 +165,51 @@ void FrontendController_t::_remove_frontend(uint8_t id) {
         _client->start_updating({});
         _client->finish_updating();
     } else if(num_active_id > 1){
-        auto sync_crcs = _id_2_sync_crcs[id];
-        size_t num_if_erase_crcs = 256 / num_active_id;
-        size_t extra = 256 % num_active_id;
-        _id_2_sync_crcs.erase(id);
-        for (auto& [other_id, crcs] : sync_crcs) {
-            size_t num_add_crcs = crcs.size();
-            _id_2_crcs[other_id].insert(_id_2_crcs[other_id].end(), crcs.begin(), crcs.end());
-            uint8_t idx = 0;
-            size_t offset = 0;
+        for (size_t idx = 0; idx < num_active_id; ++idx) {
             std::string stop_msg;
             stop_msg.append(1, static_cast<char>(RDMA_STOP));
             stop_msg.append(1, static_cast<char>(id));
             stop_msg.append(1, static_cast<char>(0));
-            size_t num_update = 0;
-            for (auto& active_id : _active_ids) {
-                if (active_id == other_id) {
-                    break;
-                }
-                size_t target_size = num_if_erase_crcs;
-                if (idx < extra) {
+            size_t need_update = 0;
+            uint8_t other_id = _active_ids[idx];
+            _id_2_num_crcs[other_id] += _id_2_sync_crcs[id][other_id].size();
+            size_t num_crc = _id_2_sync_crcs[id][other_id].size();
+            size_t target_each_sync_crcs = _id_2_num_crcs[other_id] / (num_active_id - 1);
+            size_t extra = _id_2_num_crcs[other_id] % (num_active_id - 1);
+            size_t offset = 0;
+            for (size_t j = 0; j < num_active_id - 1; ++j) {
+                size_t new_idx = (idx + 1 + j) % num_active_id;
+                uint8_t sync_id = _active_ids[new_idx];
+                size_t target_size = target_each_sync_crcs;
+                if (j < extra) {
                     target_size++;
                 }
-                idx++;
-                size_t need_add_size = target_size - _id_2_sync_crcs[other_id][active_id].size();
-                if (need_add_size > 0) {
-                    num_update++;
-                    stop_msg.append(1, static_cast<char>(active_id));
+                size_t need_add_size = target_size - _id_2_sync_crcs[other_id][sync_id].size();
+                if(need_add_size > 0) {
+                    need_update++;
+                    stop_msg.append(1, static_cast<char>(sync_id));
                     stop_msg.append(1, static_cast<char>(need_add_size));
-                    for (size_t i = 0; i < need_add_size; ++i) {
-                        stop_msg.append(1, static_cast<char>(crcs[offset + i]));
-                        _id_2_sync_crcs[other_id][active_id].push_back(crcs[offset + i]);
-                    }
+                    _id_2_sync_crcs[other_id][sync_id].insert(_id_2_sync_crcs[other_id][sync_id].end(),
+                                                              _id_2_sync_crcs[id][other_id].begin() + offset,
+                                                              _id_2_sync_crcs[id][other_id].begin() + offset + need_add_size);
                     offset += need_add_size;
                 }
             }
-            stop_msg[2] = static_cast<char>(num_update);
+            stop_msg[2] = static_cast<char>(need_update);
             int other_fd = _id_2_socket_fd[other_id];
             if (send(other_fd, stop_msg.c_str(), stop_msg.size(), 0) < 0) {
                 throw std::runtime_error("Failed to send rdma stop message");
             }
         }
         std::unordered_map<uint8_t, EgressPortEntry_t> crc_2_egressportentry;
-        for (const auto& [other_id, crcs] : _id_2_crcs) {
-            for (const auto& crc : crcs) {
-                crc_2_egressportentry[crc] = _id_2_egress_port[other_id];
+        for (auto [active_id, id_2_crc_map] : _id_2_sync_crcs) {
+            for (auto [other_id, crcs] : id_2_crc_map) {
+                for (auto crc : crcs) {
+                    crc_2_egressportentry[crc] = _id_2_egress_port[active_id];
+                }
             }
         }
+        _id_2_sync_crcs.erase(id);
         _client->start_updating(crc_2_egressportentry);
         _client->finish_updating();
     }
@@ -73,10 +218,8 @@ void FrontendController_t::_remove_frontend(uint8_t id) {
         std::string stop_msg;
         uint8_t last_id = *_active_ids.begin();
         std::unordered_map<uint8_t, EgressPortEntry_t> crc_2_egressportentry;
-        _id_2_crcs[last_id].insert(_id_2_crcs[last_id].end(), 
-                                   _id_2_crcs[id].begin(), 
-                                   _id_2_crcs[id].end());
-        for (auto& crc : _id_2_crcs[last_id]) {
+        _id_2_num_crcs[last_id] = 256;
+        for (int crc = 0; crc < 256; crc++) {
             crc_2_egressportentry[crc] = _id_2_egress_port[last_id];
         }
         _client->start_updating(crc_2_egressportentry);
@@ -88,7 +231,7 @@ void FrontendController_t::_remove_frontend(uint8_t id) {
             throw std::runtime_error("Failed to send rdma stop message");
         }
     }
-    _id_2_crcs.erase(id);
+    _id_2_num_crcs.erase(id);
     _id_2_need_changed_crcs.erase(id);
     _id_2_rdma_info.erase(id);
     _id_2_egress_port.erase(id);
@@ -124,7 +267,6 @@ void FrontendController_t::_update_rdma_info() {
         if (id == _updating_id) {
             continue;
         }
-        
         // Send added_id's rdma info to other id
         std::string update_msg;
         update_msg.append(1, static_cast<char>(UPDATE_RDMA_INFO));
@@ -138,7 +280,6 @@ void FrontendController_t::_update_rdma_info() {
             throw std::runtime_error("Failed to send update rdma info message");
         }
     }
-    
     _state = WAIT_RDMA_INIT;
 }
 
@@ -170,25 +311,26 @@ void FrontendController_t::_main_loop() {
                     throw std::runtime_error("Failed to add connection to epoll");
                 }
                 assert(_idle_ids.size() > 0);
-                uint8_t id = *_idle_ids.begin();
-                _idle_ids.erase(id);
+                uint8_t id = _idle_ids.front();
+                _idle_ids.pop();
                 _socket_fd_2_id[conn_fd] = id;
                 _id_2_socket_fd[id] = conn_fd;
                 _id_2_egress_port[id] = _ip_2_egress_port[ip];
                 std::unordered_map<uint8_t, EgressPortEntry_t> crc_2_egressportentry;
-                if (_state == INIT) {
-                    _id_2_crcs[id] = std::vector<uint8_t>();
-                    for (uint8_t crc = 0; crc < 256; crc++) {
-                        _id_2_crcs[id].push_back(crc);
-                        crc_2_egressportentry[crc] = _ip_2_egress_port[ip];
-                    }
-                    _state = NORMAL;
-                } else {
-                    _id_2_egress_port[id] = _ip_2_egress_port[ip];
-                    _add_frontend(id);
+                _id_2_egress_port[id] = _ip_2_egress_port[ip];
+                std::string rule_msg = _serializing_rule_table();
+                if (send(conn_fd, rule_msg.c_str(), rule_msg.size(), 0) < 0) {
+                    throw std::runtime_error("Failed to send rule table");
                 }
-                // TODO: send other init info
-                _active_ids.insert(id);
+                std::string d_index_msg = _serializing_d_index_table();
+                if (send(conn_fd, d_index_msg.c_str(), d_index_msg.size(), 0) < 0) {
+                    throw std::runtime_error("Failed to send d_index table");
+                }
+                std::string v_info_msg = _serializing_v_info();
+                if (send(conn_fd, v_info_msg.c_str(), v_info_msg.size(), 0) < 0) {
+                    throw std::runtime_error("Failed to send virtual server info");
+                }
+                _add_frontend(id);
             } else if(events[n].data.u32 == TIMER_PRESENTOR) {
                 uint64_t expirations;
                 ssize_t recv_size = read(events[n].data.fd, &expirations, sizeof(expirations));
@@ -328,7 +470,7 @@ void FrontendController_t::stop() {
     _exit_flag = true;
 }
 
-FrontendController_t::FrontendController_t() {
+FrontendController_t::FrontendController_t(std::string config_path) {
     _socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (_socket_fd < 0) {
         throw std::runtime_error("Failed to create socket");
@@ -360,11 +502,72 @@ FrontendController_t::FrontendController_t() {
     _client = SwitchClient_t::get_instance();
     _state = INIT;
     for (int i = 0; i < 256; ++i) {
-        _idle_ids.insert(i);
+        _idle_ids.push(i);
     }
-    // TODO: initialize _ip_port_2_egress_port
-    // TODO: initialize _rule_table
-    // May need to read from config file
+    std::ifstream config_file(config_path);
+    assert(config_file.is_open());
+    nlohmann::json config_json;
+    config_file >> config_json;
+    config_file.close();
+    std::string src_mac_str = config_json["frontend_gateway_mac"];
+    uint64_t src_mac = 0;
+    std::stringstream src_ss(src_mac_str);
+    std::string src_byte_str;
+    while(std::getline(src_ss, src_byte_str, ':')) {
+        src_mac = (src_mac << 8) | std::stoul(src_byte_str, nullptr, 16);
+    }
+    auto frontend_servers_info = config_json["frontend_servers_info"];
+    assert(frontend_servers_info.is_array());
+    for (const auto& server_info : frontend_servers_info) {
+        std::string ip = server_info["ip"];
+        std::string dst_mac_str = server_info["mac"];
+        uint64_t dst_mac = 0;
+        std::stringstream dst_ss(dst_mac_str);
+        std::string dst_byte_str;
+        while(std::getline(dst_ss, dst_byte_str, ':')) {
+            dst_mac = (dst_mac << 8) | std::stoul(dst_byte_str, nullptr, 16);
+        }
+        uint64_t egress_port = server_info["egress_port"];
+        EgressPortEntry_t egress_port_entry = {src_mac, dst_mac, egress_port};
+        _ip_2_egress_port[ip] = egress_port_entry;
+    }
+    auto backend_servers_info = config_json["backend_servers_info"];
+    assert(backend_servers_info.is_array());
+    size_t d_index = 0;
+    for (const auto& server_info : backend_servers_info) {
+        auto rules = server_info["rules"];
+        assert(rules.is_array());
+        for (const auto& rule : rules) {
+            RuleEntry_t rule_entry;
+            rule_entry.d_index = d_index;
+            rule_entry.offload_flag = rule["offload_flag"];
+            std::string key = rule["key"];
+            _rule_table[key] = rule_entry;
+        }
+        ServerInfo_t server_info_entry;
+        server_info_entry.ip = inet_addr(server_info["ip"].get<std::string>().c_str());
+        server_info_entry.port = htons(server_info["port"]);
+        std::string mac_str = server_info["mac"];
+        std::stringstream mac_ss(mac_str);
+        std::string byte_str;
+        int i = 0;
+        while (std::getline(mac_ss, byte_str, ':')) {
+            server_info_entry.mac[i] = std::stoi(byte_str, nullptr, 16);
+            i++;
+        }
+        _d_index_2_backend_server_info[d_index] = server_info_entry;
+        d_index++;
+    }
+    _virtual_server_info.ip = inet_addr(config_json["virtual_server"]["ip"].get<std::string>().c_str());
+    _virtual_server_info.port = htons(config_json["virtual_server"]["port"]);
+    std::string mac_str = config_json["virtual_server"]["mac"];
+    std::stringstream mac_ss(mac_str);
+    std::string byte_str;
+    int i = 0;
+    while (std::getline(mac_ss, byte_str, ':')) {
+        _virtual_server_info.mac[i] = std::stoi(byte_str, nullptr, 16);
+        i++;
+    }
 }
 
 FrontendController_t::~FrontendController_t() {
@@ -377,9 +580,15 @@ FrontendController_t::~FrontendController_t() {
     _controller_thread.join();
 }
 
+void FrontendController_t::init_frontend_controller(std::string config_path) {
+    if (_instance == nullptr) {
+        _instance = new FrontendController_t(config_path);
+    }
+}
+
 FrontendController_t* FrontendController_t::get_instance() {
     if (_instance == nullptr) {
-        _instance = new FrontendController_t();
+        throw std::runtime_error("FrontendController_t is not initialized");
     }
     return _instance;
 }

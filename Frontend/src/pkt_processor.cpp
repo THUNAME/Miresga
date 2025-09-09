@@ -93,9 +93,9 @@ void PktProcessor::_get_inbound_normal_pkt(rte_mbuf* recv_mbuf, uint8_t d_index,
     }
     rte_ether_addr_copy(&_dpdk_manager->source_mac, &send_eth_hdr->src_addr);
     rte_ether_addr_copy(&server_info->mac, &send_eth_hdr->dst_addr);
-    send_ip_hdr->dst_addr = htonl(server_info->ip);
+    send_ip_hdr->dst_addr = server_info->ip;
     send_ip_hdr->hdr_checksum = 0;
-    send_tcp_hdr->dst_port = htons(server_info->port);
+    send_tcp_hdr->dst_port = server_info->port;
     send_tcp_hdr->cksum = 0;
     send_mbuf->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM;
     send_mbuf->l2_len = sizeof(rte_ether_hdr);
@@ -117,9 +117,9 @@ void PktProcessor::_get_outbound_normal_pkt(rte_mbuf* recv_mbuf, rte_mbuf* send_
     }
     rte_ether_addr_copy(&_dpdk_manager->source_mac, &send_eth_hdr->src_addr);
     rte_ether_addr_copy(&virtual_server_info->mac, &send_eth_hdr->dst_addr);
-    send_ip_hdr->src_addr = htonl(virtual_server_info->ip);
+    send_ip_hdr->src_addr = virtual_server_info->ip;
     send_ip_hdr->hdr_checksum = 0;
-    send_tcp_hdr->src_port = htons(virtual_server_info->port);
+    send_tcp_hdr->src_port = virtual_server_info->port;
     send_tcp_hdr->cksum = 0;
     send_mbuf->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM;
     send_mbuf->l2_len = sizeof(rte_ether_hdr);
@@ -141,11 +141,11 @@ void PktProcessor::_get_inbound_syn_pkt(rte_mbuf* recv_mbuf, uint8_t d_index, rt
     }
     rte_ether_addr_copy(&_dpdk_manager->source_mac, &send_eth_hdr->src_addr);
     rte_ether_addr_copy(&server_info->mac, &send_eth_hdr->dst_addr);
-    send_ip_hdr->dst_addr = htonl(server_info->ip);
+    send_ip_hdr->dst_addr = server_info->ip;
     send_ip_hdr->version_ihl = (sizeof(rte_ipv4_hdr) / 4) + (send_ip_hdr->version_ihl & 0xf0);
     send_ip_hdr->total_length = htons(sizeof(rte_ipv4_hdr) + sizeof(rte_tcp_hdr) + sizeof(option_char));
     send_ip_hdr->hdr_checksum = 0;
-    send_tcp_hdr->dst_port = htons(server_info->port);
+    send_tcp_hdr->dst_port = server_info->port;
     send_tcp_hdr->tcp_flags = RTE_TCP_SYN_FLAG;
     send_tcp_hdr->data_off = ((sizeof(rte_tcp_hdr) + sizeof(option_char)) / 4) << 4;
     send_tcp_hdr->sent_seq = htonl(ntohl(send_tcp_hdr->sent_seq) - 1);
@@ -172,11 +172,11 @@ void PktProcessor::_get_inbound_rst_pkt(rte_mbuf* recv_mbuf, uint8_t d_index, rt
     }
     rte_ether_addr_copy(&_dpdk_manager->source_mac, &send_eth_hdr->src_addr);
     rte_ether_addr_copy(&server_info->mac, &send_eth_hdr->dst_addr);
-    send_ip_hdr->dst_addr = htonl(server_info->ip);
+    send_ip_hdr->dst_addr = server_info->ip;
     send_ip_hdr->version_ihl = (sizeof(rte_ipv4_hdr) / 4) + (send_ip_hdr->version_ihl & 0xf0);
     send_ip_hdr->total_length = htons(sizeof(rte_ipv4_hdr) + sizeof(rte_tcp_hdr));
     send_ip_hdr->hdr_checksum = 0;
-    send_tcp_hdr->dst_port = htons(server_info->port);
+    send_tcp_hdr->dst_port = server_info->port;
     send_tcp_hdr->tcp_flags = RTE_TCP_RST_FLAG | RTE_TCP_ACK_FLAG;
     send_tcp_hdr->data_off = (sizeof(rte_tcp_hdr) / 4) << 4;
     send_tcp_hdr->cksum = 0;
@@ -236,9 +236,9 @@ void PktProcessor::_get_cached_pkt(char* cached_pkt, uint16_t cached_pkt_len,
     }
     rte_ether_addr_copy(&_dpdk_manager->source_mac, &send_eth_hdr->src_addr);
     rte_ether_addr_copy(&server_info->mac, &send_eth_hdr->dst_addr);
-    send_ip_hdr->dst_addr = htonl(server_info->ip);
+    send_ip_hdr->dst_addr = server_info->ip;
     send_ip_hdr->hdr_checksum = 0;
-    send_tcp_hdr->dst_port = htons(server_info->port);
+    send_tcp_hdr->dst_port = server_info->port;
     send_tcp_hdr->cksum = 0;
     send_mbuf->ol_flags |= RTE_MBUF_F_TX_IPV4 | RTE_MBUF_F_TX_IP_CKSUM | RTE_MBUF_F_TX_TCP_CKSUM;
     send_mbuf->l2_len = sizeof(rte_ether_hdr);

@@ -42,7 +42,7 @@ public:
     static void init_switch(std::string prog_name);
     static SwitchInfo_t* get_instance();
     void init_ports(std::vector<PortInfo_t> port_info_list);
-    bf_rt_table_hdl* get_table_hdl(std::string table_name);
+    const bf_rt_table_hdl* get_table_hdl(std::string table_name);
     void add_batched_entry(const bf_rt_table_hdl* table_hdl,
                            std::vector<bf_rt_table_key_hdl*> key_hdls,
                            std::vector<bf_rt_table_data_hdl*> data_hdls,
@@ -63,13 +63,6 @@ public:
                       bf_rt_table_key_hdl* key_hdl,
                       bf_rt_table_data_hdl* data_hdl);  
     void clear_table(const bf_rt_table_hdl* table_hdl);
-};
-
-enum KeyMatchType_t {
-    EXACT,
-    LPM,
-    TERNARY,
-    RANGE
 };
 
 class KeyInput_t {
@@ -110,12 +103,12 @@ private:
     const bf_rt_table_hdl* _table_hdl;
     std::vector<bf_rt_table_key_hdl*> _key_hdls;
     std::vector<bf_rt_table_data_hdl*> _data_hdls;
-    std::unordered_map<std::string, std::pair<bf_rt_id_t, KeyMatchType_t>> _key_name_2_id_map;
+    std::unordered_map<std::string, std::pair<bf_rt_id_t, bf_rt_key_field_type_t>> _key_name_2_id_map;
     std::unordered_map<std::string, bf_rt_id_t> _data_name_2_id_map;
     std::unordered_map<std::string, bf_rt_id_t> _action_name_2_id_map;
     bool _enable_batch;
 public:
-    TableInfo_t(std::string table_name, std::vector<std::pair<std::string, KeyMatchType_t>> key_names, 
+    TableInfo_t(std::string table_name, std::vector<std::pair<std::string, bf_rt_key_field_type_t>> key_names,
                 std::vector<std::string> data_names, std::vector<std::string> action_names, bool enable_batch=false);
     ~TableInfo_t();
     void add_entry(std::vector<std::vector<KeyInput_t>> key_field_values,
