@@ -1,5 +1,7 @@
 #include "entry_manager.h"
 
+static auto logger = spdlog::stdout_color_mt("entry_manager");
+
 EntryManager::EntryManager(): _add_token(_add_queue), _del_token(_del_queue)
 {
     _remain_entries = new MiresgaOFTEntry_t[ENTRY_BATCH_SIZE * 2]; // * 2 for avoid potential overflow
@@ -17,6 +19,7 @@ EntryManager::~EntryManager()
 EntryManager* EntryManager::get_instance()
 {
     if (_instance == nullptr) {
+        SPDLOG_LOGGER_INFO(logger, "Creating EntryManager instance");
         _instance = new EntryManager();
     }
     return _instance;
@@ -25,6 +28,7 @@ EntryManager* EntryManager::get_instance()
 void EntryManager::destroy_instance()
 {
     if (_instance != nullptr) {
+        SPDLOG_LOGGER_WARN(logger, "Destroying EntryManager instance");
         delete _instance;
         _instance = nullptr;
     }
@@ -32,11 +36,25 @@ void EntryManager::destroy_instance()
 
 void EntryManager::add_entry(moodycamel::ProducerToken& token, MiresgaOFTEntry_t entry)
 {
+    #ifdef DEBUG
+    char ip_str[INET_ADDRSTRLEN];
+    SPDLOG_LOGGER_DEBUG(logger, "Adding entry: key({}:{}, {}), data({}, {})", 
+                        inet_ntop(AF_INET, &entry.key.client_ip, ip_str, INET_ADDRSTRLEN), entry.key.client_port, 
+                        static_cast<int>(entry.key.crc),
+                        static_cast<int>(entry.data.flow_state), 
+                        static_cast<int>(entry.data.d_index));
+    #endif
     _add_queue.enqueue(token, entry);
 }
 
 void EntryManager::del_entry(moodycamel::ProducerToken& token, MiresgaOFTKey_t key)
 {
+    #ifdef DEBUG
+    char ip_str[INET_ADDRSTRLEN];
+    SPDLOG_LOGGER_DEBUG(logger, "Deleting entry: key({}:{}, {})", 
+                        inet_ntop(AF_INET, &key.client_ip, ip_str, INET_ADDRSTRLEN), key.client_port, 
+                        static_cast<int>(key.crc));
+    #endif
     _del_queue.enqueue(token, key);
 }
 
@@ -78,7 +96,12 @@ ssize_t EntryManager::serialize_msg(char* send_buffer)
                 (_num_remain_key - need_del_size) * sizeof(MiresgaOFTKey_t));
     }
     _num_remain_entry -= need_add_size;
-    _num_remain_key -= need_del_size;    return total_bytes;
+    _num_remain_key -= need_del_size;
+    SPDLOG_LOGGER_DEBUG(logger, "Add {} entries, del {} entries, total {} bytes", 
+                        need_add_size, need_del_size, total_bytes);
+    SPDLOG_LOGGER_DEBUG(logger, "Remain {} entries, {} keys", 
+                        _num_remain_entry, _num_remain_key);    
+    return total_bytes;
 }
 
 moodycamel::ProducerToken& EntryManager::get_add_queue_token() {

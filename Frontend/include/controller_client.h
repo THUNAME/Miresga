@@ -1,18 +1,23 @@
 #ifndef CONTROLLER_CLIENT_H_
 #define CONTROLLER_CLIENT_H_
 
+#include "fmt/format.h"
+#include "fmt/ranges.h"
 #include "flow_table.h"
-#include "controller_connector.h"
 #include "rdma_manager.h"
+#include "rule_manager.h"
 #include "miresga_utils.h"
 #include "entry_manager.h"
-#include "rule_manager.h"
+#include "spdlog/spdlog.h"
+#include "concurrentqueue.h"
+#include "controller_connector.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+
+#include <thread>
+#include <shared_mutex>
 #include <sys/epoll.h>
 #include <sys/timerfd.h>
 #include <linux/if_ether.h>
-#include <shared_mutex>
-#include <thread>
-#include "concurrentqueue.h"
 
 class ControllerClient
 {

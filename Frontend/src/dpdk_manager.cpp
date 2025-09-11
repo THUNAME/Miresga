@@ -1,21 +1,35 @@
 #include "dpdk_manager.h"
 
+static auto logger = spdlog::stdout_color_mt("DPDKManager");
+
 DPDKManager::DPDKManager(int argc, char **argv, DPDKConfig_t* dpdk_config) {
+    SPDLOG_LOGGER_DEBUG(logger, "Initializing DPDK EAL");
     int ret = rte_eal_init(argc, argv);
     if (ret < 0) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to initialize DPDK EAL");
         throw std::runtime_error("Failed to initialize DPDK EAL");
     }
 
+    SPDLOG_LOGGER_DEBUG(logger, "Creating mbuf pool");
     mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", dpdk_config->num_mbufs,
                                         dpdk_config->mbuf_cache_size, 0,
                                         dpdk_config->mbuf_data_room_size, rte_socket_id());
     if (mbuf_pool == nullptr) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to create mbuf pool");
         throw std::runtime_error("Failed to create mbuf pool");
     }
 
+    SPDLOG_LOGGER_DEBUG(logger, "Setting up Ethernet device");
     port_id = 0;
     if (rte_eth_dev_count_avail() == 0) {
+        SPDLOG_LOGGER_ERROR(logger, "No available Ethernet devices");
         throw std::runtime_error("No available Ethernet devices");
+    }
+
+    ret = rte_eth_dev_get_port_by_name(dpdk_config->pci_addr, &port_id) != 0;
+    if (ret < 0) {
+        SPDLOG_LOGGER_ERROR(logger, "Ethernet device {} not found", dpdk_config->pci_addr);
+        throw std::runtime_error(fmt::format("Ethernet device {} not found", dpdk_config->pci_addr));
     }
 
     rte_eth_conf port_conf = {};
@@ -25,8 +39,10 @@ DPDKManager::DPDKManager(int argc, char **argv, DPDKConfig_t* dpdk_config) {
     port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
     port_conf.rx_adv_conf.rss_conf.rss_hf = RTE_ETH_RSS_IP | RTE_ETH_RSS_TCP;
 
+    SPDLOG_LOGGER_DEBUG(logger, "Configuring Ethernet device");
     ret = rte_eth_dev_configure(port_id, 1, 1, &port_conf);
     if (ret < 0) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to configure Ethernet device");
         throw std::runtime_error("Failed to configure Ethernet device");
     }
 
@@ -38,9 +54,9 @@ DPDKManager::DPDKManager(int argc, char **argv, DPDKConfig_t* dpdk_config) {
     }
     rte_eth_rxconf rxconf = dev_info.default_rxconf;
     rte_eth_txconf txconf = dev_info.default_txconf;
-
     txconf.offloads |= RTE_ETH_TX_OFFLOAD_IPV4_CKSUM;
     txconf.offloads |= RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
+    SPDLOG_LOGGER_DEBUG(logger, "Setting up {} RX/TX queues", dpdk_config->queue_size);
     for (int i = 0; i < dpdk_config->queue_size; ++i) {
         ret = rte_eth_rx_queue_setup(port_id, i, dpdk_config->rx_ring_size,
                                      rte_eth_dev_socket_id(port_id), &rxconf, mbuf_pool);
@@ -60,6 +76,7 @@ DPDKManager::DPDKManager(int argc, char **argv, DPDKConfig_t* dpdk_config) {
         throw std::runtime_error("Failed to enable promiscuous mode");  
     }
     
+    SPDLOG_LOGGER_DEBUG(logger, "Starting Ethernet device");
     ret = rte_eth_dev_start(port_id);
     if (ret < 0) {
         throw std::runtime_error("Failed to start Ethernet device");
@@ -85,12 +102,14 @@ DPDKManager::~DPDKManager() {
 
 void DPDKManager::init_dpdk_manager(int argc, char **argv, DPDKConfig_t* dpdk_config) {
     if (_instance == nullptr) {
+        SPDLOG_LOGGER_DEBUG(logger, "Initializing DPDKManager singleton instance");
         _instance = new DPDKManager(argc, argv, dpdk_config);
     }
 }
 
 DPDKManager* DPDKManager::get_instance() {
     if (_instance == nullptr) {
+        SPDLOG_LOGGER_ERROR(logger, "DPDKManager not initialized");
         throw std::runtime_error("DPDKManager not initialized");
     }
     return _instance;
@@ -98,6 +117,7 @@ DPDKManager* DPDKManager::get_instance() {
 
 void DPDKManager::destroy_instance() {
     if (_instance != nullptr) {
+        SPDLOG_LOGGER_WARN(logger, "Destroying DPDKManager instance");
         delete _instance;
         _instance = nullptr;
     }

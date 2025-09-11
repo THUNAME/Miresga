@@ -1,9 +1,15 @@
 #ifndef RDMA_ENGINE_H_
 #define RDMA_ENGINE_H_
 
+#include "fmt/format.h"
+#include "fmt/ranges.h"
+#include "spdlog/spdlog.h"
 #include "miresga_utils.h"
-#include <unordered_map>
+#include "spdlog/sinks/stdout_color_sinks.h"
+
 #include <vector>
+#include <arpa/inet.h>
+#include <unordered_map>
 
 class RDMAEngine
 {
@@ -28,7 +34,8 @@ public:
     void add_flow_data(MiresgaOFTEntry_t* data);
     void add_flow_data(std::vector<MiresgaOFTEntry_t>& data_vec);
     void del_flow_data(MiresgaOFTKey_t* data);
-    void sync();
+    void sync_start();
+    void sync_complete();
     RDMAInfo_t* get_local_rdma_info();
     void* get_recv_addr();
 };

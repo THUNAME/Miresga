@@ -1,7 +1,12 @@
 #ifndef DPDK_MANAGER_H_
 #define DPDK_MANAGER_H_
 
+#include "fmt/format.h"
+#include "fmt/ranges.h"
+#include "spdlog/spdlog.h"
 #include "miresga_utils.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+
 extern "C" {
     #include <rte_eal.h>
     #include <rte_ethdev.h>

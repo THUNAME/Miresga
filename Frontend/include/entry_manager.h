@@ -1,10 +1,16 @@
 #ifndef ENTRY_MANAGER_H_
 #define ENTRY_MANAGER_H_
 
-#include "miresga_config.h"
+#include "fmt/format.h"
+#include "fmt/ranges.h"
+#include "spdlog/spdlog.h"
 #include "miresga_utils.h"
+#include "miresga_config.h"
 #include "concurrentqueue.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+
 #include <vector>
+#include <arpa/inet.h>
 
 typedef moodycamel::ConcurrentQueue<MiresgaOFTEntry_t> EntryQueue;
 typedef moodycamel::ConcurrentQueue<MiresgaOFTKey_t> KeyQueue;

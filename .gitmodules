@@ -7,3 +7,9 @@
 [submodule "Switch/control_plane/third_party/json"]
 	path = Switch/control_plane/third_party/json
 	url = https://github.com/nlohmann/json.git
+[submodule "Frontend/third_party/spdlog"]
+	path = Frontend/third_party/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "Frontend/third_party/fmt"]
+	path = Frontend/third_party/fmt
+	url = https://github.com/fmtlib/fmt.git

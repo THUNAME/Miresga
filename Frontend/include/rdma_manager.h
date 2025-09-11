@@ -1,16 +1,21 @@
 #ifndef RDMA_MANAGER_H_
 #define RDMA_MANAGER_H_
 
-#include "miresga_config.h"
-#include "miresga_utils.h"
+#include "fmt/format.h"
+#include "fmt/ranges.h"
 #include "rdma_engine.h"
-#include <unordered_set>
-#include <unordered_map>
-#include <vector>
-#include <stdexcept>
-#include <sys/epoll.h>
+#include "spdlog/spdlog.h"
+#include "miresga_utils.h"
+#include "miresga_config.h"
+
+
 #include <string>
 #include <vector>
+#include <stdexcept>
+#include <arpa/inet.h>
+#include <sys/epoll.h>
+#include <unordered_set>
+#include <unordered_map>
 
 class RDMAManager
 {
@@ -35,6 +40,7 @@ public:
     void remove_engine(uint8_t id, std::unordered_map<uint8_t, uint8_t>& crc_2_id);
     void start_engine(uint8_t id);
     void sync_states();
+    void sync_complete(uint8_t id);
     std::vector<ibv_wc> process_cqe();
     void add_flow_data(MiresgaOFTEntry_t* add_data);
     void add_old_flow_data(uint8_t remote_id, std::vector<MiresgaOFTEntry_t>& add_data_vec);

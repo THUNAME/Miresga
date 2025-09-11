@@ -1,9 +1,13 @@
 #include "controller_connector.h"
 
+static auto logger = spdlog::stdout_color_mt("ControllerConnector");
+
 ControllerConnector::ControllerConnector(char* controller_ip, uint16_t controller_port)
 {
+    SPDLOG_LOGGER_INFO(logger, "Connecting to controller at {}:{}", controller_ip, controller_port);
     socket = ::socket(AF_INET, SOCK_STREAM, 0);
     if (socket < 0) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to create socket");
         throw std::runtime_error("Failed to create socket");
     }
 
@@ -13,6 +17,7 @@ ControllerConnector::ControllerConnector(char* controller_ip, uint16_t controlle
     inet_pton(AF_INET, controller_ip, &server_addr.sin_addr);
 
     if (connect(socket, (struct sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to connect to controller at {}:{}", controller_ip, controller_port);
         ::close(socket);
         throw std::runtime_error("Failed to connect to controller");
     }
@@ -29,6 +34,7 @@ MiresgaStatus_t ControllerConnector::send_message(char* msg, size_t msg_size)
 {
     ssize_t sent_size = send(socket, msg, msg_size, 0);
     if (sent_size < 0) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to send message");
         return MiresgaStatus_t::INTERNAL_ERROR;
     }
     return MiresgaStatus_t::OK;
@@ -38,6 +44,7 @@ MiresgaStatus_t ControllerConnector::recv_message(char* buffer, size_t buffer_si
 {
     ssize_t received = recv(socket, buffer, buffer_size, 0);
     if (received < 0) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to receive message");
         return MiresgaStatus_t::INTERNAL_ERROR;
     }
     recv_size = static_cast<size_t>(received);

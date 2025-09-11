@@ -1,6 +1,8 @@
 #include "pkt_processor.h"
 
-const uint8_t crc8_table[256] = {
+static auto logger = spdlog::stdout_color_mt("PktProcessor");
+
+static const uint8_t crc8_table[256] = {
     0x00, 0x07, 0x0E, 0x09, 0x1C, 0x1B, 0x12, 0x15, 0x38, 0x3F, 0x36, 0x31, 0x24, 0x23, 0x2A, 0x2D, 
     0x70, 0x77, 0x7E, 0x79, 0x6C, 0x6B, 0x62, 0x65, 0x48, 0x4F, 0x46, 0x41, 0x54, 0x53, 0x5A, 0x5D, 
     0xE0, 0xE7, 0xEE, 0xE9, 0xFC, 0xFB, 0xF2, 0xF5, 0xD8, 0xDF, 0xD6, 0xD1, 0xC4, 0xC3, 0xCA, 0xCD, 
@@ -19,7 +21,7 @@ const uint8_t crc8_table[256] = {
     0xDE, 0xD9, 0xD0, 0xD7, 0xC2, 0xC5, 0xCC, 0xCB, 0xE6, 0xE1, 0xE8, 0xEF, 0xFA, 0xFD, 0xF4, 0xF3
 };
 
-const uint8_t option_char[] = {
+static const uint8_t option_char[] = {
     // MSS: type 2, length 4, value 1460 (0x05B4 in hex, big-endian)
     0x02, 0x04, 0x05, 0xB4,
     // NOP: type 1
@@ -43,7 +45,9 @@ PktProcessor::PktProcessor(int queue_id, int socket_id)
       _flow_table(FlowTable::get_instance()),
       _add_token(_entry_manager->get_add_queue_token()),
       _del_token(_entry_manager->get_del_queue_token())
-{}
+{
+    SPDLOG_LOGGER_INFO(logger, "PktProcessor created on queue {} and socket {}", queue_id, socket_id);
+}
 
 PktProcessor::~PktProcessor() {
     stop();
@@ -68,16 +72,20 @@ std::string PktProcessor::_parse_payload(std::string payload) {
     pos1++;
     size_t pos2 = payload.find(" ", pos1);
     if (pos2 == std::string::npos) return "";
-    return payload.substr(pos1, pos2 - pos1);
+    std::string parsed_payload =  payload.substr(pos1, pos2 - pos1);
+    SPDLOG_LOGGER_DEBUG(logger, "Parsed payload: {}", parsed_payload);
+    return parsed_payload;
 }
 
 MiresgaStatus_t PktProcessor::_send_pkts(rte_mbuf** mbuf, size_t nb_pkts) {
     uint16_t nb_tx = rte_eth_tx_burst(_dpdk_manager->port_id, _queue_id, mbuf, nb_pkts);
     MiresgaStatus_t status = MiresgaStatus_t::OK;
     if (nb_tx != nb_pkts) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to send all packets, sent {}/{}", nb_tx, nb_pkts);
         status = MiresgaStatus_t::INTERNAL_ERROR;
+        rte_pktmbuf_free_bulk(mbuf + nb_tx, nb_pkts - nb_tx);
     }
-    rte_pktmbuf_free_bulk(mbuf + nb_tx, nb_pkts - nb_tx);
+    SPDLOG_LOGGER_DEBUG(logger, "Sent {} packets", nb_tx);
     return status;
 }
 
@@ -252,6 +260,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
     rte_mbuf* send_mbufs[(nb_pkts << 1)];
     size_t num_send_pkts = 0;
     if (rte_pktmbuf_alloc_bulk(_dpdk_manager->mbuf_pool, send_mbufs, nb_pkts << 1) != 0) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to allocate send mbufs");
         return;
     }
     for (int i = 0; i < nb_pkts; ++i) {
@@ -259,11 +268,13 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
         uint32_t payload_len = 0;
         rte_ether_hdr* eth_hdr = rte_pktmbuf_mtod(recv_mbufs[i], rte_ether_hdr*);
         if (eth_hdr->ether_type != htons(RTE_ETHER_TYPE_IPV4)) {
+            SPDLOG_LOGGER_DEBUG(logger, "Not an IPv4 packet, ether_type: 0x{:x}", ntohs(eth_hdr->ether_type));
             continue;
         }
         rte_ipv4_hdr* ip_hdr = (rte_ipv4_hdr*)(eth_hdr + 1);
         header_size += (ip_hdr->version_ihl & 0x0f) << 2;
         if (ip_hdr->next_proto_id != IPPROTO_TCP) {
+            SPDLOG_LOGGER_DEBUG(logger, "Not a TCP packet, next_proto_id: {}", ip_hdr->next_proto_id);
             continue;
         }
         rte_tcp_hdr* tcp_hdr = (rte_tcp_hdr*)((char*)ip_hdr + header_size);
@@ -271,34 +282,54 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
         payload_len = ntohs(ip_hdr->total_length) - header_size;
         uint8_t src_crc = _calc_crc8(ntohl(ip_hdr->src_addr), ntohs(tcp_hdr->src_port));
         uint8_t dst_crc = _calc_crc8(ntohl(ip_hdr->dst_addr), ntohs(tcp_hdr->dst_port));
-        MiresgaOFTKey_t src_oft_key = {0, src_crc, ip_hdr->src_addr, tcp_hdr->src_port};
-        MiresgaOFTKey_t dst_oft_key = {0, dst_crc, ip_hdr->dst_addr, tcp_hdr->dst_port};
+        MiresgaOFTKey_t src_oft_key = {0, src_crc, ntohl(ip_hdr->src_addr), ntohs(tcp_hdr->src_port)};
+        MiresgaOFTKey_t dst_oft_key = {0, dst_crc, ntohl(ip_hdr->dst_addr), ntohs(tcp_hdr->dst_port)};
+        #ifdef DEBUG
+        char src_ip_str[INET_ADDRSTRLEN];
+        char dst_ip_str[INET_ADDRSTRLEN];
+        SPDLOG_LOGGER_DEBUG(logger, "Processing packet: src_ip={}, src_port={}, dst_ip={}, dst_port={}, flags=0x{:x}, payload_len={}",
+                            inet_ntop(AF_INET, &ip_hdr->src_addr, src_ip_str, INET_ADDRSTRLEN),
+                            ntohs(tcp_hdr->src_port),
+                            inet_ntop(AF_INET, &ip_hdr->dst_addr, dst_ip_str, INET_ADDRSTRLEN),
+                            ntohs(tcp_hdr->dst_port),
+                            tcp_hdr->tcp_flags,
+                            payload_len);
+        #endif
         MiresgaFlowData_t* flow_data = _flow_table->get_flow(src_oft_key);
         if (flow_data != nullptr) {
             // Process inbound.
+            SPDLOG_LOGGER_DEBUG(logger, "Found inbound flow");
             if (tcp_hdr->tcp_flags & RTE_TCP_RST_FLAG) {
-            // Handle connection termination.
+                // Handle connection termination.
+                SPDLOG_LOGGER_DEBUG(logger, "Inbound RST packet. Flow state: {}", static_cast<int>(flow_data->state));
                 if (flow_data->state == FlowState_t::OFFLOAD) {
                     // Remove the entry from the offload table.
+                    SPDLOG_LOGGER_DEBUG(logger, "Removing entry from offload table");
                     _entry_manager->del_entry(_del_token, src_oft_key);
                 }
                 if (flow_data->state >= FlowState_t::BACKEND_SYN) {
                     // Release the backend server.
+                    SPDLOG_LOGGER_DEBUG(logger, "Releasing the connection with backend server");
                     _get_inbound_rst_pkt(recv_mbufs[i], flow_data->entry_data.data.d_index, send_mbufs[num_send_pkts]);
                     num_send_pkts++;
                     _rdma_manager->del_flow_data(&src_oft_key);
                 }
                 _flow_table->remove_flow(src_oft_key);
+                // No need to reply to the RST packet.
             }
             else if(tcp_hdr->tcp_flags & RTE_TCP_FIN_FLAG) {
+                // Just replay with RST packet for simplicity.
+                SPDLOG_LOGGER_DEBUG(logger, "Inbound FIN packet, replying with RST. Flow state: {}", static_cast<int>(flow_data->state));
                 _get_outbound_rst_pkt(recv_mbufs[i], send_mbufs[num_send_pkts]);
                 num_send_pkts++;
                 if (flow_data->state == FlowState_t::OFFLOAD) {
                     // Remove the entry from the offload table.
+                    SPDLOG_LOGGER_DEBUG(logger, "Removing entry from offload table");
                     _entry_manager->del_entry(_del_token, src_oft_key);
                 }
                 if (flow_data->state >= FlowState_t::BACKEND_SYN) {
                     // Release the backend server.
+                    SPDLOG_LOGGER_DEBUG(logger, "Releasing the connection with backend server");
                     _get_inbound_rst_pkt(recv_mbufs[i], flow_data->entry_data.data.d_index, send_mbufs[num_send_pkts]);
                     num_send_pkts++;
                     _rdma_manager->del_flow_data(&src_oft_key);
@@ -306,40 +337,51 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                 _flow_table->remove_flow(src_oft_key);
             }
             else {
+                SPDLOG_LOGGER_DEBUG(logger, "Inbound normal packet. Flow state: {}", static_cast<int>(flow_data->state));
                 switch(flow_data->state) {
                     case FlowState_t::ESTABLISHED:
                     case FlowState_t::OFFLOAD: {
                         if (payload_len > 0) {
                             // Recieve new payload, parse it and check if we need to change the backend server.
+                            SPDLOG_LOGGER_DEBUG(logger, "New request received");
                             std::string payload((char*)tcp_hdr + (tcp_hdr->data_off >> 4) * 4, 
                                                 payload_len);
                             // Note: Here is an simple example. Users may implement more complex payload parsing logic here.
                             std::string parsed_payload = _parse_payload(payload);
                             RuleEntry_t* rule = nullptr;
                             if (_rule_manager->get_rule(parsed_payload, &rule) != MiresgaStatus_t::OK) {
+                                SPDLOG_LOGGER_DEBUG(logger, "No matching rule for the new flow, ignore it.");
                                 break;
                             }
                             // Backend server changed. Send RST to the old backend server and SYN to the new backend server.
                             if (rule->d_index != flow_data->entry_data.data.d_index) {
+                                SPDLOG_LOGGER_DEBUG(logger, "Backend server changed from {} to {}, sending RST to the old backend and SYN to the new backend",
+                                                    static_cast<int>(flow_data->entry_data.data.d_index),
+                                                    static_cast<int>(rule->d_index));
                                 _get_inbound_rst_pkt(recv_mbufs[i], flow_data->entry_data.data.d_index, send_mbufs[num_send_pkts]);
                                 num_send_pkts++;
                                 if (flow_data->state == FlowState_t::OFFLOAD) {
+                                    // Remove the entry from the offload table.
+                                    SPDLOG_LOGGER_DEBUG(logger, "Removing old entry from offload table");
                                     _entry_manager->del_entry(_del_token, src_oft_key);
                                 }
+                                // Send SYN to the new backend server.
                                 _get_inbound_syn_pkt(recv_mbufs[i], rule->d_index, send_mbufs[num_send_pkts]);
                                 num_send_pkts++;
                                 flow_data->entry_data.data.d_index = rule->d_index;
-                                flow_data->entry_data.data.flow_state = rule->offload_flag == 1 ? static_cast<uint8_t>(FlowState_t::OFFLOAD) : static_cast<uint8_t>(FlowState_t::BACKEND_SYN);
+                                flow_data->entry_data.data.flow_state = rule->offload_flag == 1 ? static_cast<uint8_t>(FlowState_t::OFFLOAD) : static_cast<uint8_t>(FlowState_t::ESTABLISHED);
                                 flow_data->state = FlowState_t::BACKEND_SYN;
                                 if (flow_data->recv_pkt != nullptr) {
                                     rte_free(flow_data->recv_pkt);
                                 }
+                                // Cache the received packet for later use.
                                 flow_data->recv_pkt = (char*)rte_malloc_socket("recv_pkt", recv_mbufs[i]->data_len, 0, _socket_id);
                                 flow_data->recv_pkt_size = recv_mbufs[i]->data_len;
                                 memcpy(flow_data->recv_pkt, rte_pktmbuf_mtod(recv_mbufs[i], char*), recv_mbufs[i]->data_len);
                             }
                             // Backend server not changed. Just forward the packet.
                             else {
+                                SPDLOG_LOGGER_DEBUG(logger, "Backend server not changed, just forward the packet");
                                 _get_inbound_normal_pkt(recv_mbufs[i], flow_data->entry_data.data.d_index, send_mbufs[num_send_pkts]);
                                 num_send_pkts++;
                                 if (flow_data->state == FlowState_t::OFFLOAD && rule->offload_flag == 0) {
@@ -356,6 +398,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                             _rdma_manager->add_flow_data(&flow_data->entry_data);
                         }
                         else {
+                            SPDLOG_LOGGER_DEBUG(logger, "Not new request, just forward the packet");
                             _get_inbound_normal_pkt(recv_mbufs[i], flow_data->entry_data.data.d_index, send_mbufs[num_send_pkts]);
                             num_send_pkts++;
                         }
@@ -367,10 +410,15 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                             rte_ipv4_hdr *recv_ip_hdr = (rte_ipv4_hdr *)(recv_ether_hdr + 1);
                             rte_tcp_hdr *recv_tcp_hdr = (rte_tcp_hdr *)(recv_ip_hdr + 1);
                             if (recv_tcp_hdr->sent_seq == tcp_hdr->sent_seq)
-                            {
+                            {  
+                                SPDLOG_LOGGER_DEBUG(logger, "Received a retransmitted packet, resend the SYN packet to backend server");
                                 _get_inbound_syn_pkt(recv_mbufs[i], flow_data->entry_data.data.d_index, send_mbufs[num_send_pkts]);
                                 num_send_pkts++;
+                            } else {
+                                SPDLOG_LOGGER_DEBUG(logger, "Sequence number not match, may be a out-of-order packet. Ignore it.");
                             }
+                        } else {
+                            SPDLOG_LOGGER_DEBUG(logger, "No cached packet found, may be a bug.");
                         }
                         break;
                     }
@@ -382,20 +430,27 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
         }
         flow_data = _flow_table->get_flow(dst_oft_key);
         if (flow_data != nullptr) {
+            SPDLOG_LOGGER_DEBUG(logger, "Found outbound flow");
             // Process outbound.
             if (tcp_hdr->tcp_flags & RTE_TCP_RST_FLAG) {
-            // Handle connection termination.
+                SPDLOG_LOGGER_DEBUG(logger, "Outbound RST packet. Flow state: {}", static_cast<int>(flow_data->state));
+                // Handle connection termination.
                 if (flow_data->state == FlowState_t::OFFLOAD) {
                     // Remove the entry from the offload table.
+                    SPDLOG_LOGGER_DEBUG(logger, "Removing entry from offload table");
                     _entry_manager->del_entry(_del_token, src_oft_key);
                 }
-                _rdma_manager->del_flow_data(&src_oft_key);
+                if (flow_data->state >= FlowState_t::ESTABLISHED)
+                    _rdma_manager->del_flow_data(&src_oft_key);
                 // Send RST to the client.
+                SPDLOG_LOGGER_DEBUG(logger, "Sending RST to the client");
                 _get_outbound_normal_pkt(recv_mbufs[i], send_mbufs[num_send_pkts]);
                 num_send_pkts++;
                 _flow_table->remove_flow(src_oft_key);
+                // No need to reply to the RST packet.
             }
             else if(tcp_hdr->tcp_flags & RTE_TCP_FIN_FLAG) {
+                SPDLOG_LOGGER_DEBUG(logger, "Outbound FIN packet, replying with RST. Flow state: {}", static_cast<int>(flow_data->state));
                 // Send RST to the client.
                 _get_outbound_rst_pkt(recv_mbufs[i], send_mbufs[num_send_pkts]);
                 num_send_pkts++;
@@ -403,10 +458,12 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                 _get_inbound_rst_pkt(recv_mbufs[i], flow_data->entry_data.data.d_index, send_mbufs[num_send_pkts + 1]);
                 num_send_pkts++;
                 if (flow_data->state == FlowState_t::OFFLOAD) {
+                    SPDLOG_LOGGER_DEBUG(logger, "Removing entry from offload table");
                     // Remove the entry from the offload table.
                     _entry_manager->del_entry(_del_token, src_oft_key);
                 }
-                _rdma_manager->del_flow_data(&src_oft_key);
+                if (flow_data->state >= FlowState_t::ESTABLISHED)
+                    _rdma_manager->del_flow_data(&src_oft_key);
                 _flow_table->remove_flow(src_oft_key);
             }
             else
@@ -414,16 +471,20 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                 switch(flow_data->state) {
                     case FlowState_t::BACKEND_SYN:
                     {
-                        if (tcp_hdr->tcp_flags & (RTE_TCP_SYN_FLAG | RTE_TCP_ACK_FLAG) == 0) {
+                        if ((tcp_hdr->tcp_flags & (RTE_TCP_SYN_FLAG | RTE_TCP_ACK_FLAG)) == 0) {
+                            // Ignore non-SYN-ACK packets in BACKEND_SYN state.
+                            SPDLOG_LOGGER_DEBUG(logger, "Not a SYN-ACK packet, ignore it.");
                             break;
                         }
                         if (flow_data->entry_data.data.flow_state == static_cast<uint8_t>(FlowState_t::OFFLOAD)) {
+                            SPDLOG_LOGGER_DEBUG(logger, "Adding entry to offload table");
                             _entry_manager->add_entry(_add_token, flow_data->entry_data);
                             flow_data->state = FlowState_t::OFFLOAD;
                         }
                         else {
                             flow_data->state = FlowState_t::ESTABLISHED;
                         }
+                        // Send the cached packet to the backend server.
                         _get_cached_pkt(static_cast<char*>(flow_data->recv_pkt), flow_data->recv_pkt_size, flow_data->entry_data.data.d_index, send_mbufs[num_send_pkts]);
                         ++num_send_pkts;
                         break;
@@ -431,6 +492,8 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                     case FlowState_t::OFFLOAD:
                     case FlowState_t::ESTABLISHED:
                     {
+                        SPDLOG_LOGGER_DEBUG(logger, "Outbound normal packet. Flow state: {}", static_cast<int>(flow_data->state));
+                        // Just forward the packet.
                         _get_outbound_normal_pkt(recv_mbufs[i], send_mbufs[num_send_pkts]);
                         num_send_pkts++;
                         break;
@@ -443,6 +506,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
         }
         // Process new flow.
         if (payload_len == 0) {
+            SPDLOG_LOGGER_DEBUG(logger, "No payload in the new flow, ignore it.");
             continue;
         }
         std::string payload((char*)tcp_hdr + (tcp_hdr->data_off >> 4) * 4, 
@@ -451,34 +515,45 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
         std::string parsed_payload = _parse_payload(payload);
         RuleEntry_t* rule = nullptr;
         if (_rule_manager->get_rule(parsed_payload, &rule) != MiresgaStatus_t::OK) {
+            SPDLOG_LOGGER_DEBUG(logger, "No matching rule for the new flow, ignore it.");
             continue;
         }
+        SPDLOG_LOGGER_DEBUG(logger, "New flow detected, adding to flow table and sending SYN to backend server. Selected backend index: {}",
+                            static_cast<int>(rule->d_index));
         _get_inbound_syn_pkt(recv_mbufs[i], rule->d_index, send_mbufs[num_send_pkts]);
         num_send_pkts++;
         flow_data = static_cast<MiresgaFlowData_t*>(rte_malloc_socket("flow_data", sizeof(MiresgaFlowData_t), 0, _socket_id));
         flow_data->state = FlowState_t::BACKEND_SYN;
         flow_data->entry_data.key = src_oft_key;
         flow_data->entry_data.data.d_index = rule->d_index;
-        flow_data->entry_data.data.flow_state = rule->offload_flag == 1 ? static_cast<uint8_t>(FlowState_t::OFFLOAD) : static_cast<uint8_t>(FlowState_t::BACKEND_SYN);
+        flow_data->entry_data.data.flow_state = rule->offload_flag == 1 ? static_cast<uint8_t>(FlowState_t::OFFLOAD) : static_cast<uint8_t>(FlowState_t::ESTABLISHED);
+        // Cache the received packet for later use.
         flow_data->recv_pkt = static_cast<char*>(rte_malloc_socket("recv_pkt", recv_mbufs[i]->data_len, 0, _socket_id));
         flow_data->recv_pkt_size = recv_mbufs[i]->data_len;
         memcpy(flow_data->recv_pkt, rte_pktmbuf_mtod(recv_mbufs[i], char*), recv_mbufs[i]->data_len);
         _flow_table->insert_flow(src_oft_key, flow_data);
     }
     if (num_send_pkts > 0) {
+        SPDLOG_LOGGER_DEBUG(logger, "Sending {} packets", num_send_pkts);
         _send_pkts(send_mbufs, num_send_pkts);
     }
 }
 
 void PktProcessor::_main_loop() {
+    SPDLOG_LOGGER_DEBUG(logger, "Entering main loop");
     rte_mbuf* recv_mbufs[_dpdk_manager->dpdk_config->burst_size];
     while(!_exit_flag) {
         uint16_t nb_pkts = rte_eth_rx_burst(_dpdk_manager->port_id, _queue_id, recv_mbufs, _dpdk_manager->dpdk_config->burst_size);
         if (nb_pkts > 0) {
+            SPDLOG_LOGGER_DEBUG(logger, "Received {} packets", nb_pkts);
             _process_pkts(recv_mbufs, nb_pkts);
             rte_pktmbuf_free_bulk(recv_mbufs, nb_pkts);
+        } else if (nb_pkts < 0) {
+            SPDLOG_LOGGER_ERROR(logger, "Error receiving packets");
+            throw std::runtime_error("Error receiving packets");
         }
     }
+    SPDLOG_LOGGER_DEBUG(logger, "Exiting main loop");
 }
 
 int PktProcessor::_worker_fun_wrapper(void* arg) {
@@ -488,6 +563,7 @@ int PktProcessor::_worker_fun_wrapper(void* arg) {
 }
 
 void PktProcessor::start(int core_id) {
+    SPDLOG_LOGGER_DEBUG(logger, "Starting packet processor on core {}", core_id);
     _exit_flag = false;
     if (rte_eal_remote_launch(&PktProcessor::_worker_fun_wrapper, this, core_id) != 0) {
         throw std::runtime_error("Failed to launch packet processor thread.");
@@ -499,5 +575,6 @@ void PktProcessor::stop() {
     uint32_t core_id;
     RTE_LCORE_FOREACH_WORKER(core_id) {
         rte_eal_wait_lcore(core_id);
+        SPDLOG_LOGGER_DEBUG(logger, "Packet processor on core {} stopped", core_id);
     }
 }

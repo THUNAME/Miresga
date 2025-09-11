@@ -1,7 +1,12 @@
 #ifndef RULE_MANAGER_H_
 #define RULE_MANAGER_H_
 
+#include "fmt/format.h"
+#include "fmt/ranges.h"
+#include "spdlog/spdlog.h"
 #include "miresga_utils.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+
 #include <memory>
 #include <string>
 #include <unordered_map>

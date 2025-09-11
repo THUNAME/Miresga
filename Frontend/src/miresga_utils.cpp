@@ -1,5 +1,7 @@
 #include "miresga_utils.h"
 
+static auto logger = spdlog::stdout_color_mt("MiresgaUtils");
+
 MiresgaFlowData_t::MiresgaFlowData_t() {
     recv_pkt = nullptr;
     recv_pkt_size = 0;
@@ -69,7 +71,9 @@ size_t RDMABuffer_t::add_new_data(void* data, size_t data_size) {
             std::memory_order_acquire
         ));
     }
-    memcpy(buffer + offset, data, add_size);
+    SPDLOG_LOGGER_DEBUG(logger, "Added {} bytes to RDMA buffer, total used: {}", add_size, num_used.load());
+    SPDLOG_LOGGER_DEBUG(logger, "Should add size: {}", data_size);
+    memcpy(reinterpret_cast<void*>(reinterpret_cast<char*>(buffer) + offset), data, add_size);
     return add_size;
 }
 
@@ -80,6 +84,7 @@ void RDMABuffer_t::create_sge(ibv_sge& sge, bool& changed) {
         need_send = num_used.load() - num_sent;
     }
     if (need_send == 0) {
+        SPDLOG_LOGGER_DEBUG(logger, "No new data to send");
         changed = false;
     }
     else{
@@ -88,12 +93,14 @@ void RDMABuffer_t::create_sge(ibv_sge& sge, bool& changed) {
         sge.lkey = mr->lkey;
         num_sent = num_used;
         changed = true;
+        SPDLOG_LOGGER_DEBUG(logger, "Prepared SGE with {} bytes to send", need_send);
     }
 }
 
 void RDMABuffer_t::remove_last_send_data() {
+    SPDLOG_LOGGER_DEBUG(logger, "Removing last sent data of {} bytes from RDMA buffer", num_sent);
     std::unique_lock<std::shared_mutex> lock(mutex);
-    memcpy(buffer, buffer + num_sent, size - num_sent);
+    memcpy(buffer, reinterpret_cast<void*>(reinterpret_cast<char*>(buffer) + num_sent), size - num_sent);
     num_used -= num_sent;
     num_sent = 0;
 }

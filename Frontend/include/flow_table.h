@@ -1,9 +1,15 @@
 #ifndef FLOW_TABLE_H_
 #define FLOW_TABLE_H_
 
-#include "miresga_config.h"
+#include "fmt/format.h"
+#include "fmt/ranges.h"
+#include "spdlog/spdlog.h"
 #include "miresga_utils.h"
+#include "miresga_config.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+
 #include <vector>
+#include <arpa/inet.h>
 #include <boost/unordered/concurrent_flat_map.hpp>
 
 typedef boost::unordered::concurrent_flat_map<uint64_t, MiresgaFlowData_t*> FlowMap_t;

@@ -7,7 +7,7 @@
 #define QUEUE_THRESHOLD  20
 #define RDMA_SEND_ADD_BUFFER_SIZE    (65536 * 10)
 #define RDMA_SEND_DEL_BUFFER_SIZE    (65536 * 8)
-#define RDMA_RECV_BUFFER_SIZE        (RDMA_SEND_ADD_BUFFER_SIZE + \ 
+#define RDMA_RECV_BUFFER_SIZE        (RDMA_SEND_ADD_BUFFER_SIZE + \
                                       RDMA_SEND_DEL_BUFFER_SIZE)
 #define MAX_CQ_SIZE           16
 #define CQ_PRESENTER          0x0a0a0a0a

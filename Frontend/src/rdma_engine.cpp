@@ -1,7 +1,10 @@
 #include "rdma_engine.h"
 
+auto logger = spdlog::stdout_color_mt("RDMAEngine");
+
 void RDMAEngine::_create_qp(ibv_pd* pd, ibv_cq* cq) 
 {
+    SPDLOG_LOGGER_DEBUG(logger, "Creating Queue Pair for RDMA Engine ID: {}", _id);
     ibv_qp_init_attr qp_init_attr;
     memset(&qp_init_attr, 0, sizeof(qp_init_attr));
     qp_init_attr.send_cq = cq;
@@ -15,12 +18,16 @@ void RDMAEngine::_create_qp(ibv_pd* pd, ibv_cq* cq)
     qp_init_attr.sq_sig_all = 1;
     _qp = ibv_create_qp(pd, &qp_init_attr);
     if (!_qp) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to create Queue Pair for RDMA Engine ID: {}", _id);
         throw std::runtime_error("Failed to create Queue Pair");
     }
+    _local_rdma_info->qpn = _qp->qp_num;
+    SPDLOG_LOGGER_DEBUG(logger, "Local QPN for RDMA Engine ID {}: 0x{:x}", _id, _local_rdma_info->qpn);
 }
 
 void RDMAEngine::_change_qp_to_init() 
 {
+    SPDLOG_LOGGER_DEBUG(logger, "Changing Queue Pair state to INIT for RDMA Engine ID: {}", _id);
     ibv_qp_attr qp_attr;
     memset(&qp_attr, 0, sizeof(qp_attr));
     qp_attr.qp_state = IBV_QPS_INIT;
@@ -29,11 +36,11 @@ void RDMAEngine::_change_qp_to_init()
     if (ibv_modify_qp(_qp, &qp_attr, IBV_QP_STATE | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS | IBV_QP_PKEY_INDEX)) {
         throw std::runtime_error("Failed to modify Queue Pair");
     }
-    _local_rdma_info->qpn = _qp->qp_num;
 }
 
 void RDMAEngine::_change_qp_to_rtr() 
 {
+    SPDLOG_LOGGER_DEBUG(logger, "Changing Queue Pair state to RTR for RDMA Engine ID: {}", _id);
     ibv_qp_attr qp_attr;
     memset(&qp_attr, 0, sizeof(qp_attr));
     qp_attr.qp_state = IBV_QPS_RTR;
@@ -55,6 +62,7 @@ void RDMAEngine::_change_qp_to_rtr()
 
 void RDMAEngine::_change_qp_to_rts() 
 {
+    SPDLOG_LOGGER_DEBUG(logger, "Changing Queue Pair state to RTS for RDMA Engine ID: {}", _id);
     ibv_qp_attr qp_attr;
     memset(&qp_attr, 0, sizeof(qp_attr));
     qp_attr.qp_state = IBV_QPS_RTS;
@@ -78,6 +86,7 @@ RDMAEngine::RDMAEngine(uint8_t id, ibv_pd* pd, ibv_cq* cq, ibv_gid& gid)
     _recv_buffer = new RDMABuffer_t(RDMA_RECV_BUFFER_SIZE, pd);
     _local_rdma_info->addr = reinterpret_cast<uint64_t>(_recv_buffer->mr->addr);
     _local_rdma_info->rkey = _recv_buffer->mr->rkey;
+    SPDLOG_LOGGER_DEBUG(logger, "Local RDMA Info for Engine ID {}: RECV ADDR: 0x{:x}, RECV RKEY: 0x{:x}", _id, _local_rdma_info->addr, _local_rdma_info->rkey);
     _create_qp(pd, cq);
     _change_qp_to_init();
 }
@@ -98,8 +107,11 @@ RDMAEngine::~RDMAEngine()
 
 void RDMAEngine::init_engine(RDMAInfo_t* remote_rdma_info) {
     if (!remote_rdma_info) {
+        SPDLOG_LOGGER_ERROR(logger, "Remote RDMA info is null for Engine ID: {}", _id);
         throw std::runtime_error("Remote RDMA info is null");
     }
+    SPDLOG_LOGGER_DEBUG(logger, "Initializing RDMA Engine ID: {} with Remote QPN: 0x{:x}, Remote ADDR: 0x{:x}, Remote RKEY: 0x{:x}", 
+                        _id, remote_rdma_info->qpn, remote_rdma_info->addr, remote_rdma_info->rkey);
     _remote_rdma_info = remote_rdma_info;
     _change_qp_to_rtr();
     _change_qp_to_rts();
@@ -113,26 +125,57 @@ void RDMAEngine::init_engine(RDMAInfo_t* remote_rdma_info) {
 }
 
 void RDMAEngine::add_flow_data(MiresgaOFTEntry_t* data) {
+    if (data == nullptr) {
+        SPDLOG_LOGGER_ERROR(logger, "Null flow data to add for Engine ID: {}", _id);
+        throw std::runtime_error("Null flow data");
+    }
+    #ifdef DEBUG
+    char ip_str[INET_ADDRSTRLEN];
+    SPDLOG_LOGGER_DEBUG(logger, "Adding flow data for Engine ID: {}", _id);
+    SPDLOG_LOGGER_DEBUG(logger, "Flow Data - Key:({}:{} {:02x}), Data:({} {})",
+                        inet_ntop(AF_INET, &data->key.client_ip, ip_str, INET_ADDRSTRLEN), data->key.client_port, data->key.crc,
+                        data->data.flow_state, data->data.d_index);
+    #endif
     _send_add_buffer->add_new_data(static_cast<void*>(data), sizeof(MiresgaOFTEntry_t));
 }
 
 void RDMAEngine::add_flow_data(std::vector<MiresgaOFTEntry_t>& data_vec) {
-    if (data_vec.empty()) return;
+    if (data_vec.empty()) {
+        SPDLOG_LOGGER_ERROR(logger, "Empty flow data vector to add for Engine ID: {}", _id);
+        throw std::runtime_error("Empty flow data vector");
+    }
+    SPDLOG_LOGGER_DEBUG(logger, "Adding {} flow entries for Engine ID: {}", data_vec.size(), _id);
     size_t total_size = data_vec.size() * sizeof(MiresgaOFTEntry_t);
     _send_add_buffer->add_new_data(static_cast<void*>(data_vec.data()), total_size);
+    
 }
 
 void RDMAEngine::del_flow_data(MiresgaOFTKey_t* data) {
+    if (data == nullptr) {
+        SPDLOG_LOGGER_ERROR(logger, "Null flow data to delete for Engine ID: {}", _id);
+        throw std::runtime_error("Null flow data");
+    }
+    #ifdef DEBUG
+    char ip_str[INET_ADDRSTRLEN];
+    SPDLOG_LOGGER_DEBUG(logger, "Deleting flow data for Engine ID: {}", _id);
+    SPDLOG_LOGGER_DEBUG(logger, "Flow Key - Key:({}:{} {:02x})",
+                        inet_ntop(AF_INET, &data->client_ip, ip_str, INET_ADDRSTRLEN), data->client_port, data->crc);
+    #endif
     _send_del_buffer->add_new_data(static_cast<void*>(data), sizeof(MiresgaOFTKey_t));
 }
 
-void RDMAEngine::sync() {
+void RDMAEngine::sync_start() {
+    SPDLOG_LOGGER_DEBUG(logger, "Syncing RDMA Engine ID: {}", _id);
     ibv_sge all_sge[2];
     int num_sge = 0;
     bool changed = false;
     bool changed_1 = false, changed_2 = false;
     _send_add_buffer->create_sge(all_sge[0], changed_1);
     _send_del_buffer->create_sge(all_sge[1], changed_2);
+    if (!changed_1 && !changed_2) {
+        SPDLOG_LOGGER_DEBUG(logger, "No new data to sync for RDMA Engine ID: {}", _id);
+        return;
+    }
     ibv_send_wr send_wr;
     memset(&send_wr, 0, sizeof(send_wr));
     send_wr.wr_id = _id;
@@ -153,9 +196,11 @@ void RDMAEngine::sync() {
     }
     uint32_t imm_data = 0;
     if (changed_1) {
+        SPDLOG_LOGGER_DEBUG(logger, "Sending {} adding flow entries for Engine ID: {}", all_sge[0].length / sizeof(MiresgaOFTEntry_t), _id);
         imm_data |= (all_sge[0].length / sizeof(MiresgaOFTEntry_t)) << 16;
     }
     if (changed_2) {
+        SPDLOG_LOGGER_DEBUG(logger, "Sending {} deleting flow entries for Engine ID: {}", all_sge[1].length / sizeof(MiresgaOFTKey_t), _id);
         imm_data |= all_sge[1].length / sizeof(MiresgaOFTKey_t);
     }
     send_wr.opcode = IBV_WR_RDMA_WRITE_WITH_IMM;
@@ -165,6 +210,7 @@ void RDMAEngine::sync() {
     send_wr.send_flags = IBV_SEND_SIGNALED;
     send_wr.next = nullptr;
     ibv_post_send(_qp, &send_wr, &bad_send_wr);
+    // Post a receive request to avoid the receive queue being empty
     ibv_recv_wr recv_wr;
     memset(&recv_wr, 0, sizeof(recv_wr));
     recv_wr.wr_id = _id;
@@ -180,4 +226,9 @@ RDMAInfo_t* RDMAEngine::get_local_rdma_info() {
 
 void* RDMAEngine::get_recv_addr() {
     return _recv_buffer->buffer;
+}
+
+void RDMAEngine::sync_complete() {
+    _send_add_buffer->remove_last_send_data();
+    _send_del_buffer->remove_last_send_data();
 }

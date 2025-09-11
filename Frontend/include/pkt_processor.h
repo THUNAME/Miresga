@@ -1,12 +1,17 @@
 #ifndef PKT_PROCESSOR_H_
 #define PKT_PROCESSOR_H_
 
+#include "fmt/format.h"
+#include "fmt/ranges.h"
+#include "flow_table.h"
+#include "dpdk_manager.h"
 #include "rule_manager.h"
 #include "rdma_manager.h"
+#include "spdlog/spdlog.h"
 #include "entry_manager.h"
-#include "dpdk_manager.h"
-#include "flow_table.h"
 #include "concurrentqueue.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+
 #include <thread>
 #include <string>
 

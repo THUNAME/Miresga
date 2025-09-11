@@ -32,4 +32,6 @@
 *.app
 
 build
+build_debug
+build_release
 .vscode

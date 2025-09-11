@@ -1,13 +1,17 @@
 #ifndef MIRESGA_UTILS_H_
 #define MIRESGA_UTILS_H_
 
+#include "spdlog/spdlog.h"
 #include "miresga_config.h" 
-#include <infiniband/verbs.h>
-#include <cstdint>
-#include <atomic>
+#include "spdlog/sinks/stdout_color_sinks.h"
+
 #include <mutex>
-#include <shared_mutex>
+#include <atomic>
+#include <cstdint>
 #include <stdexcept>
+#include <shared_mutex>
+#include <infiniband/verbs.h>
+
 extern "C" {
     #include <rte_ether.h>
     #include <rte_malloc.h>
@@ -21,7 +25,7 @@ struct RDMAInfo_t {
 };
 
 struct DPDKConfig_t {
-    char *pci_addr;
+    char* pci_addr;
     uint32_t rx_ring_size;
     uint32_t tx_ring_size;
     uint32_t num_mbufs;
