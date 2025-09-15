@@ -34,3 +34,13 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE ${INCLUDE_DIRECTORIES} $ENV{SDE_INSTALL}/include)
+
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    message(STATUS "Debug build")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_DEBUG DEBUG=1)
+    target_compile_options(${PROJECT_NAME} PRIVATE -g)
+else()
+    message(STATUS "Release build")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE SPDLOG_ACTIVE_LEVEL=SPDLOG_LEVEL_INFO NDEBUG=1)
+    target_compile_options(${PROJECT_NAME} PRIVATE -O3 -march=native)
+endif()
