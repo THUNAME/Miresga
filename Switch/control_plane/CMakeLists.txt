@@ -27,6 +27,8 @@ add_executable(${PROJECT_NAME} ${SOURCES})
 target_link_libraries(${PROJECT_NAME} PRIVATE
     nlohmann_json::nlohmann_json
     Threads::Threads
+    spdlog::spdlog
+    fmt::fmt
     ${DRIVER_LIBRARY}
     ${BFSYS_LIBRARY}
     ${BFUTILS_LIBRARY}
