@@ -3,14 +3,20 @@
 
 #define CONFIG_DIR "../config/"
 
+#include "fmt/format.h"
+#include "fmt/ranges.h"
+#include "spdlog/spdlog.h"
 #include "tofino_wrapper.h"
 #include "nlohmann/json.hpp"
+#include "spdlog/sinks/stdout_color_sinks.h"
+
 #include <string>
 #include <vector>
+#include <fstream>
+#include <sstream>
+#include <stdexcept>
 #include <unordered_map>
 #include <unordered_set>
-#include <stdexcept>
-#include <fstream>
 
 struct MiresgaOFTKey_t
 {

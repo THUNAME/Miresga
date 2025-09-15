@@ -1,6 +1,9 @@
 #include "tofino_wrapper.h"
 
+static auto logger = spdlog::stdout_color_mt("tofino_wrapper");
+
 SwitchInfo_t::SwitchInfo_t(std::string prog_name) {
+    SPDLOG_LOGGER_INFO(logger, "Initializing Switch with prog_name: {}", prog_name);
     _prog_name = prog_name;
     _dev_tgt = new bf_rt_target_t;
     _switchd_ctx = new bf_switchd_context_t;
@@ -16,12 +19,15 @@ SwitchInfo_t::SwitchInfo_t(std::string prog_name) {
     _switchd_ctx->dev_sts_port = 7777;
     _switchd_ctx->kernel_pkt = true;
     if (bf_switchd_lib_init(_switchd_ctx) != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to init switchd with conf_file: {}", conf_file);
         throw std::runtime_error("Failed to init switchd");
     }
     if (bf_rt_info_get(_dev_tgt->dev_id, _prog_name.data(), &_bf_rt_info) != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to get bf_rt_info for prog_name: {}", prog_name);
         throw std::runtime_error("Failed to get bf_rt_info");
     }
     if (bf_rt_session_create(&_session) != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to create session");
         throw std::runtime_error("Failed to create session");
     }
 }
@@ -34,27 +40,32 @@ SwitchInfo_t::~SwitchInfo_t() {
 
 void SwitchInfo_t::init_switch(std::string prog_name) {
     if (_instance == nullptr) {
+        SPDLOG_LOGGER_INFO(logger, "Creating SwitchInfo_t instance");
         _instance = new SwitchInfo_t(prog_name);
     }
 }
 
 SwitchInfo_t* SwitchInfo_t::get_instance() {
     if (_instance == nullptr) {
+        SPDLOG_LOGGER_ERROR(logger, "SwitchInfo_t is not initialized");
         throw std::runtime_error("SwitchInfo_t is not initialized");
     }
     return _instance;
 }
 
 void SwitchInfo_t::init_ports(std::vector<PortInfo_t> port_info_list) {
+    SPDLOG_LOGGER_INFO(logger, "Initializing ports");
     for (const auto& port_info : port_info_list) {
         bf_pal_front_port_handle_t port_hdl;
         if (bf_pm_port_str_to_hdl_get(_dev_tgt->dev_id, 
                                       port_info.port_name.data(), 
                                       &port_hdl) != BF_SUCCESS) {
+            SPDLOG_LOGGER_ERROR(logger, "Failed to get port handle for {}", port_info.port_name);
             throw std::runtime_error("Failed to get port handle for " + port_info.port_name);
         }
         if (bf_pm_port_add(_dev_tgt->dev_id, &port_hdl, 
                            port_info.port_speed, port_info.fec_type) != BF_SUCCESS) {
+            SPDLOG_LOGGER_ERROR(logger, "Failed to add port {}", port_info.port_name);
             throw std::runtime_error("Failed to add port " + port_info.port_name);
         }
         if (bf_pm_port_enable(_dev_tgt->dev_id, &port_hdl) != BF_SUCCESS) {
@@ -64,10 +75,12 @@ void SwitchInfo_t::init_ports(std::vector<PortInfo_t> port_info_list) {
 }
 
 const bf_rt_table_hdl* SwitchInfo_t::get_table_hdl(std::string table_name) {
+    SPDLOG_LOGGER_DEBUG(logger, "Getting table handle for {}", table_name);
     const bf_rt_table_hdl* table_hdl = new bf_rt_table_hdl;
     if (bf_rt_table_from_name_get(_bf_rt_info, 
                                   table_name.data(), 
                                   &table_hdl) != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to get table {}", table_name);
         throw std::runtime_error("Failed to get table " + table_name);
     }
     return table_hdl;
@@ -77,19 +90,23 @@ void SwitchInfo_t::add_batched_entry(const bf_rt_table_hdl* table_hdl,
                              std::vector<bf_rt_table_key_hdl*> key_hdls,
                              std::vector<bf_rt_table_data_hdl*> data_hdls,
                              size_t size) {
+    SPDLOG_LOGGER_DEBUG(logger, "Adding batched entries, size: {}", size);
     bf_status_t status = bf_rt_begin_batch(_session);
     if (status != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to begin batch");
         throw std::runtime_error("Failed to begin batch");
     }
     for(int i = 0; i < size; i++) {
         status = bf_rt_table_entry_add(table_hdl, _session, _dev_tgt,
                                        key_hdls[i], data_hdls[i]);
         if (status != BF_SUCCESS) {
+            SPDLOG_LOGGER_ERROR(logger, "Failed to add entry");
             throw std::runtime_error("Failed to add entry");
         }
     }
     status = bf_rt_end_batch(_session, false);
     if (status != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to end batch");
         throw std::runtime_error("Failed to end batch");
     }
 }
@@ -97,19 +114,23 @@ void SwitchInfo_t::add_batched_entry(const bf_rt_table_hdl* table_hdl,
 void SwitchInfo_t::delete_batched_entry(const bf_rt_table_hdl* table_hdl,
                                 std::vector<bf_rt_table_key_hdl*> key_hdls,
                                 size_t size) {
+    SPDLOG_LOGGER_DEBUG(logger, "Deleting batched entries, size: {}", size);
     bf_status_t status = bf_rt_begin_batch(_session);
     if (status != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to begin batch");
         throw std::runtime_error("Failed to begin batch");
     }
     for (size_t i = 0; i < size; i++) {
         status = bf_rt_table_entry_del(table_hdl, _session, _dev_tgt,
                                        key_hdls[i]);
         if (status != BF_SUCCESS) {
+            SPDLOG_LOGGER_ERROR(logger, "Failed to delete entry");
             throw std::runtime_error("Failed to delete entry");
         }
     }
     status = bf_rt_end_batch(_session, false);
     if (status != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to end batch");
         throw std::runtime_error("Failed to end batch");
     }
 }
@@ -118,19 +139,23 @@ void SwitchInfo_t::modify_batched_entry(const bf_rt_table_hdl* table_hdl,
                                 std::vector<bf_rt_table_key_hdl*> key_hdls,
                                 std::vector<bf_rt_table_data_hdl*> data_hdls,
                                 size_t size) {
+    SPDLOG_LOGGER_DEBUG(logger, "Modifying batched entries, size: {}", size);
     bf_status_t status = bf_rt_begin_batch(_session);
     if (status != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to begin batch");
         throw std::runtime_error("Failed to begin batch");
     }
     for (size_t i = 0; i < size; i++) {
         status = bf_rt_table_entry_mod(table_hdl, _session, _dev_tgt,
                                        key_hdls[i], data_hdls[i]);
         if (status != BF_SUCCESS) {
+            SPDLOG_LOGGER_ERROR(logger, "Failed to modify entry");
             throw std::runtime_error("Failed to modify entry");
         }
     }
     status = bf_rt_end_batch(_session, false);
     if (status != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to end batch");
         throw std::runtime_error("Failed to end batch");
     }
 }
@@ -138,26 +163,32 @@ void SwitchInfo_t::modify_batched_entry(const bf_rt_table_hdl* table_hdl,
 void SwitchInfo_t::add_entry(const bf_rt_table_hdl* table_hdl,
                       bf_rt_table_key_hdl* key_hdl,
                       bf_rt_table_data_hdl* data_hdl) {
+    SPDLOG_LOGGER_DEBUG(logger, "Adding entry");
     bf_status_t status = bf_rt_table_entry_add(table_hdl, _session, _dev_tgt,
                                                key_hdl, data_hdl);
     if (status != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to add entry");
         throw std::runtime_error("Failed to add entry");
     }
     status = bf_rt_session_complete_operations(_session);
     if (status != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to complete operations");
         throw std::runtime_error("Failed to complete operations");
     }
 }
 
 void SwitchInfo_t::delete_entry(const bf_rt_table_hdl* table_hdl,
                          bf_rt_table_key_hdl* key_hdl) {
+    SPDLOG_LOGGER_DEBUG(logger, "Deleting entry");
     bf_status_t status = bf_rt_table_entry_del(table_hdl, _session, _dev_tgt,
                                                key_hdl);
     if (status != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to delete entry");
         throw std::runtime_error("Failed to delete entry");
     }
     status = bf_rt_session_complete_operations(_session);
     if (status != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to complete operations");
         throw std::runtime_error("Failed to complete operations");
     }
 }
@@ -165,30 +196,41 @@ void SwitchInfo_t::delete_entry(const bf_rt_table_hdl* table_hdl,
 void SwitchInfo_t::modify_entry(const bf_rt_table_hdl* table_hdl,
                          bf_rt_table_key_hdl* key_hdl,
                          bf_rt_table_data_hdl* data_hdl) {
+    SPDLOG_LOGGER_DEBUG(logger, "Modifying entry");
     bf_status_t status = bf_rt_table_entry_mod(table_hdl, _session, _dev_tgt,
                                                key_hdl, data_hdl);
     if (status != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to modify entry");
         throw std::runtime_error("Failed to modify entry");
     }
     status = bf_rt_session_complete_operations(_session);
     if (status != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to complete operations");
         throw std::runtime_error("Failed to complete operations");
     }
 }
 
 void SwitchInfo_t::clear_table(const bf_rt_table_hdl* table_hdl) {
+    SPDLOG_LOGGER_DEBUG(logger, "Clearing table");
     bf_status_t status = bf_rt_table_clear(table_hdl, _session, _dev_tgt);
     if (status != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to clear table");
         throw std::runtime_error("Failed to clear table");
+    }
+    status = bf_rt_session_complete_operations(_session);
+    if (status != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to complete operations");
+        throw std::runtime_error("Failed to complete operations");
     }
 }
 
 TableInfo_t::TableInfo_t(std::string table_name, std::vector<std::pair<std::string, bf_rt_key_field_type_t>> key_names, 
                          std::vector<std::string> data_names, std::vector<std::string> action_names, bool enable_batch)
 {
+    SPDLOG_LOGGER_DEBUG(logger, "Initializing Table {}", table_name);
     _enable_batch = enable_batch;
     if (_enable_batch && action_names.size() > 1) { 
-        printf("Warning: Batch mode only supports one action per table. Disabling batch mode.\n");
+        SPDLOG_LOGGER_WARN(logger, "Batch mode only supports one action per table. Disabling batch mode.");
         _enable_batch = false;
     }
     _switch_info = SwitchInfo_t::get_instance();
@@ -200,6 +242,7 @@ TableInfo_t::TableInfo_t(std::string table_name, std::vector<std::pair<std::stri
         if (bf_rt_key_field_id_get(_table_hdl, 
                                    key_name.first.data(), 
                                    &key_id) != BF_SUCCESS) {
+            SPDLOG_LOGGER_ERROR(logger, "Failed to get key field id for {}", key_name.first);
             throw std::runtime_error("Failed to get key field id for " + key_name.first);
         }
         _key_name_2_id_map[key_name.first] = std::make_pair(key_id, key_name.second);
@@ -208,6 +251,7 @@ TableInfo_t::TableInfo_t(std::string table_name, std::vector<std::pair<std::stri
         if (bf_rt_data_field_id_get(_table_hdl, 
                                     data_name.data(), 
                                     &data_id) != BF_SUCCESS) {
+            SPDLOG_LOGGER_ERROR(logger, "Failed to get data field id for {}", data_name);
             throw std::runtime_error("Failed to get data field id for " + data_name);
         }
         _data_name_2_id_map[data_name] = data_id;
@@ -216,22 +260,26 @@ TableInfo_t::TableInfo_t(std::string table_name, std::vector<std::pair<std::stri
         if (bf_rt_action_name_to_id(_table_hdl, 
                                     action_name.data(), 
                                     &action_id) != BF_SUCCESS) {
+            SPDLOG_LOGGER_ERROR(logger, "Failed to get action id for {}", action_name);
             throw std::runtime_error("Failed to get action id for " + action_name);
         }
         _action_name_2_id_map[action_name] = action_id;
     }
     for (size_t i = 0; i < MAX_BATCH_SIZE; i++) {
         if (bf_rt_table_key_allocate(_table_hdl, &key_hdl) != BF_SUCCESS) {
+            SPDLOG_LOGGER_ERROR(logger, "Failed to allocate key handle");
             throw std::runtime_error("Failed to allocate key handle");
         }
         _key_hdls.push_back(key_hdl);
         if (bf_rt_table_data_allocate(_table_hdl, &data_hdl) != BF_SUCCESS) {
+            SPDLOG_LOGGER_ERROR(logger, "Failed to allocate data handle");
             throw std::runtime_error("Failed to allocate data handle");
         }
         if (_enable_batch) {
             if (bf_rt_table_action_data_reset(_table_hdl, 
                                               _action_name_2_id_map.begin()->second, 
                                               &data_hdl) != BF_SUCCESS) {
+                SPDLOG_LOGGER_ERROR(logger, "Failed to allocate action data handle");
                 throw std::runtime_error("Failed to allocate action data handle");
             }
         }
@@ -240,6 +288,7 @@ TableInfo_t::TableInfo_t(std::string table_name, std::vector<std::pair<std::stri
 }
 
 TableInfo_t::~TableInfo_t() {
+    SPDLOG_LOGGER_WARN(logger, "Deallocating table handles");
     for (auto key_hdl : _key_hdls) {
         bf_rt_table_key_deallocate(key_hdl);
     }
@@ -251,6 +300,7 @@ TableInfo_t::~TableInfo_t() {
 void TableInfo_t::add_entry(std::vector<std::vector<KeyInput_t>> key_field_values,
                             std::string action_name,
                             std::vector<std::vector<DataInput_t>> data_field_values) {
+    SPDLOG_LOGGER_DEBUG(logger, "Adding entries");
     size_t remain_entry = key_field_values.size();
     while (remain_entry > 0) {
         size_t batch_size = std::min(remain_entry, (size_t)MAX_BATCH_SIZE);
@@ -265,18 +315,21 @@ void TableInfo_t::add_entry(std::vector<std::vector<KeyInput_t>> key_field_value
                     case bf_rt_key_field_type_t::EXACT:
                         status = bf_rt_key_field_set_value(key_hdl, key_id, value);
                         if (status != BF_SUCCESS) {
+                            SPDLOG_LOGGER_ERROR(logger, "Failed to set key field value for {}", key_field_value.name);
                             throw std::runtime_error("Failed to set key field value for " + key_field_value.name);
                         }
                         break;
                     case bf_rt_key_field_type_t::LPM:
                         status = bf_rt_key_field_set_value_lpm(key_hdl, key_id, value, ((LPMKeyInput_t*)(&key_field_value))->prefix_len);
                         if (status != BF_SUCCESS) {
+                            SPDLOG_LOGGER_ERROR(logger, "Failed to set LPM key field value for {}", key_field_value.name);
                             throw std::runtime_error("Failed to set LPM key field value for " + key_field_value.name);
                         }
                         break;
                     case bf_rt_key_field_type_t::TERNARY:
                         status = bf_rt_key_field_set_value_and_mask(key_hdl, key_id, value, ((TernaryKeyInput_t*)(&key_field_value))->mask);
                         if (status != BF_SUCCESS) {
+                            SPDLOG_LOGGER_ERROR(logger, "Failed to set TERNARY key field value for {}", key_field_value.name);
                             throw std::runtime_error("Failed to set TERNARY key field value for " + key_field_value.name);
                         }
                         break;
@@ -284,10 +337,12 @@ void TableInfo_t::add_entry(std::vector<std::vector<KeyInput_t>> key_field_value
                         status = bf_rt_key_field_set_value_range(key_hdl, key_id, ((RangeKeyInput_t*)(&key_field_value))->start, 
                                                                  ((RangeKeyInput_t*)(&key_field_value))->end);
                         if (status != BF_SUCCESS) {
+                            SPDLOG_LOGGER_ERROR(logger, "Failed to set RANGE key field value for {}", key_field_value.name);
                             throw std::runtime_error("Failed to set RANGE key field value for " + key_field_value.name);
                         }
                         break;
                     default:
+                        SPDLOG_LOGGER_ERROR(logger, "Unsupported key match type");
                         throw std::runtime_error("Unsupported key match type");
                 }
             }
@@ -296,6 +351,7 @@ void TableInfo_t::add_entry(std::vector<std::vector<KeyInput_t>> key_field_value
                 if (bf_rt_table_action_data_reset(_table_hdl,
                                                   _action_name_2_id_map[action_name], 
                                                   &data_hdl) != BF_SUCCESS) {
+                    SPDLOG_LOGGER_ERROR(logger, "Failed to allocate action data handle");
                     throw std::runtime_error("Failed to allocate action data handle");
                 }
             }
@@ -304,16 +360,19 @@ void TableInfo_t::add_entry(std::vector<std::vector<KeyInput_t>> key_field_value
                 uint64_t value = data_field_value.value;
                 bf_status_t status = bf_rt_data_field_set_value(data_hdl, data_id, value);
                 if (status != BF_SUCCESS) {
+                    SPDLOG_LOGGER_ERROR(logger, "Failed to set data field value for {}", data_field_value.name);
                     throw std::runtime_error("Failed to set data field value for " + data_field_value.name);
                 }
             }
         }
         _switch_info->add_batched_entry(_table_hdl, _key_hdls, _data_hdls, batch_size);
         remain_entry -= batch_size;
+        SPDLOG_LOGGER_DEBUG(logger, "Remaining entries: {}", remain_entry);
     }
 }
 
 void TableInfo_t::delete_entry(std::vector<std::vector<KeyInput_t>> key_field_values) {
+    SPDLOG_LOGGER_DEBUG(logger, "Deleting entries");
     size_t remain_entry = key_field_values.size();
     while (remain_entry > 0) {
         size_t batch_size = std::min(remain_entry, (size_t)MAX_BATCH_SIZE);
@@ -328,18 +387,21 @@ void TableInfo_t::delete_entry(std::vector<std::vector<KeyInput_t>> key_field_va
                     case bf_rt_key_field_type_t::EXACT:
                         status = bf_rt_key_field_set_value(key_hdl, key_id, value);
                         if (status != BF_SUCCESS) {
+                            SPDLOG_LOGGER_ERROR(logger, "Failed to set key field value for {}", key_field_value.name);
                             throw std::runtime_error("Failed to set key field value for " + key_field_value.name);
                         }
                         break;
                     case bf_rt_key_field_type_t::LPM:
                         status = bf_rt_key_field_set_value_lpm(key_hdl, key_id, value, ((LPMKeyInput_t*)(&key_field_value))->prefix_len);
                         if (status != BF_SUCCESS) {
+                            SPDLOG_LOGGER_ERROR(logger, "Failed to set LPM key field value for {}", key_field_value.name);
                             throw std::runtime_error("Failed to set LPM key field value for " + key_field_value.name);
                         }
                         break;
                     case bf_rt_key_field_type_t::TERNARY:
                         status = bf_rt_key_field_set_value_and_mask(key_hdl, key_id, value, ((TernaryKeyInput_t*)(&key_field_value))->mask);
                         if (status != BF_SUCCESS) {
+                            SPDLOG_LOGGER_ERROR(logger, "Failed to set TERNARY key field value for {}", key_field_value.name);
                             throw std::runtime_error("Failed to set TERNARY key field value for " + key_field_value.name);
                         }
                         break;
@@ -347,22 +409,26 @@ void TableInfo_t::delete_entry(std::vector<std::vector<KeyInput_t>> key_field_va
                         status = bf_rt_key_field_set_value_range(key_hdl, key_id, ((RangeKeyInput_t*)(&key_field_value))->start, 
                                                                  ((RangeKeyInput_t*)(&key_field_value))->end);
                         if (status != BF_SUCCESS) {
+                            SPDLOG_LOGGER_ERROR(logger, "Failed to set RANGE key field value for {}", key_field_value.name);
                             throw std::runtime_error("Failed to set RANGE key field value for " + key_field_value.name);
                         }
                         break;
                     default:
+                        SPDLOG_LOGGER_ERROR(logger, "Unsupported key match type");
                         throw std::runtime_error("Unsupported key match type");
                 }
             }
         }
         _switch_info->delete_batched_entry(_table_hdl, _key_hdls, batch_size);
         remain_entry -= batch_size;
+        SPDLOG_LOGGER_DEBUG(logger, "Remaining entries: {}", remain_entry);
     }
 }
 
 void TableInfo_t::modify_entry(std::vector<std::vector<KeyInput_t>> key_field_values,
                                std::string action_name,
                                std::vector<std::vector<DataInput_t>> data_field_values){
+    SPDLOG_LOGGER_DEBUG(logger, "Modifying entries");
     size_t remain_entry = key_field_values.size();
     while (remain_entry > 0) {
         size_t batch_size = std::min(remain_entry, (size_t)MAX_BATCH_SIZE);
@@ -377,18 +443,21 @@ void TableInfo_t::modify_entry(std::vector<std::vector<KeyInput_t>> key_field_va
                     case bf_rt_key_field_type_t::EXACT:
                         status = bf_rt_key_field_set_value(key_hdl, key_id, value);
                         if (status != BF_SUCCESS) {
+                            SPDLOG_LOGGER_ERROR(logger, "Failed to set key field value for {}", key_field_value.name);
                             throw std::runtime_error("Failed to set key field value for " + key_field_value.name);
                         }
                         break;
                     case LPM:
                         status = bf_rt_key_field_set_value_lpm(key_hdl, key_id, value, ((LPMKeyInput_t*)(&key_field_value))->prefix_len);
                         if (status != BF_SUCCESS) {
+                            SPDLOG_LOGGER_ERROR(logger, "Failed to set LPM key field value for {}", key_field_value.name);
                             throw std::runtime_error("Failed to set LPM key field value for " + key_field_value.name);
                         }
                         break;
                     case TERNARY:
                         status = bf_rt_key_field_set_value_and_mask(key_hdl, key_id, value, ((TernaryKeyInput_t*)(&key_field_value))->mask);
                         if (status != BF_SUCCESS) {
+                            SPDLOG_LOGGER_ERROR(logger, "Failed to set TERNARY key field value for {}", key_field_value.name);
                             throw std::runtime_error("Failed to set TERNARY key field value for " + key_field_value.name);
                         }
                         break;
@@ -396,10 +465,12 @@ void TableInfo_t::modify_entry(std::vector<std::vector<KeyInput_t>> key_field_va
                         status = bf_rt_key_field_set_value_range(key_hdl, key_id, ((RangeKeyInput_t*)(&key_field_value))->start, 
                                                                  ((RangeKeyInput_t*)(&key_field_value))->end);
                         if (status != BF_SUCCESS) {
+                            SPDLOG_LOGGER_ERROR(logger, "Failed to set RANGE key field value for {}", key_field_value.name);
                             throw std::runtime_error("Failed to set RANGE key field value for " + key_field_value.name);
                         }
                         break;
                     default:
+                        SPDLOG_LOGGER_ERROR(logger, "Unsupported key match type");
                         throw std::runtime_error("Unsupported key match type");
                 }
             }
@@ -422,52 +493,65 @@ void TableInfo_t::modify_entry(std::vector<std::vector<KeyInput_t>> key_field_va
         }
         _switch_info->modify_batched_entry(_table_hdl, _key_hdls, _data_hdls, batch_size);
         remain_entry -= batch_size;
+        SPDLOG_LOGGER_DEBUG(logger, "Remaining entries: {}", remain_entry);
     }
 }
 
 void TableInfo_t::clear_all_entry() {
+    SPDLOG_LOGGER_DEBUG(logger, "Clearing all entries");
     _switch_info->clear_table(_table_hdl);
 }
 
 RegisterInfo_t::RegisterInfo_t(std::string register_name) {
+    SPDLOG_LOGGER_DEBUG(logger, "Initializing Register {}", register_name);
     _switch_info = SwitchInfo_t::get_instance();
     _reg_hdl = _switch_info->get_table_hdl(register_name);
     if (bf_rt_table_key_allocate(_reg_hdl, &_key_hdl) != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to allocate register key handle");
         throw std::runtime_error("Failed to allocate register key handle");
     }
     if (bf_rt_table_data_allocate(_reg_hdl, &_data_hdl) != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to allocate register data handle");
         throw std::runtime_error("Failed to allocate register data handle");
     }
     if (bf_rt_key_field_id_get(_reg_hdl, "$REGISTER_INDEX", &_index_id) != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to get register index field id");
         throw std::runtime_error("Failed to get register index field id");
     }
     std::string data_field_name = register_name + ".f1";
     if (bf_rt_data_field_id_get(_reg_hdl, data_field_name.c_str(), &_data_id) != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to get register data field id");
         throw std::runtime_error("Failed to get register data field id");
     }
     if (bf_rt_table_data_allocate(_reg_hdl, &_data_hdl) != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to allocate register data handle");
         throw std::runtime_error("Failed to allocate register data handle");
     }
 }
 
 RegisterInfo_t::~RegisterInfo_t() {
+    SPDLOG_LOGGER_WARN(logger, "Deallocating register handles");
     bf_rt_table_key_deallocate(_key_hdl);
     bf_rt_table_data_deallocate(_data_hdl);
 }
 
 void RegisterInfo_t::write_reg(uint64_t index, uint64_t data) {
     bf_status_t status;
+    SPDLOG_LOGGER_DEBUG(logger, "Writing register");
     status = bf_rt_key_field_set_value(_key_hdl, _index_id, index);
     if (status != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to set register index");
         throw std::runtime_error("Failed to set register index");
     }
     status = bf_rt_data_field_set_value(_data_hdl, _data_id, data);
     if (status != BF_SUCCESS) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to set register data");
         throw std::runtime_error("Failed to set register data");
     }
     _switch_info->add_entry(_reg_hdl, _key_hdl, _data_hdl);
 }
 
 void RegisterInfo_t::clear_reg() {
+    SPDLOG_LOGGER_DEBUG(logger, "Clearing register");
     _switch_info->clear_table(_reg_hdl);
 }

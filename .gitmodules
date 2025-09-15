@@ -13,3 +13,9 @@
 [submodule "Frontend/third_party/fmt"]
 	path = Frontend/third_party/fmt
 	url = https://github.com/fmtlib/fmt.git
+[submodule "Switch/control_plane/third_party/spdlog"]
+	path = Switch/control_plane/third_party/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "Switch/control_plane/third_party/fmt"]
+	path = Switch/control_plane/third_party/fmt
+	url = https://github.com/fmtlib/fmt.git

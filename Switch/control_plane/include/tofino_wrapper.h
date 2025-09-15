@@ -2,23 +2,28 @@
 #define TOFINO_WRAPPER_H_
 
 extern "C" {
-    #include <bf_switchd/bf_switchd.h>
     #include <bf_rt/bf_rt_init.h>
+    #include <bf_pm/bf_pm_intf.h>
+    #include <bf_rt/bf_rt_table.h>
+    #include <mc_mgr/mc_mgr_intf.h>
     #include <bf_rt/bf_rt_session.h>
+    #include <bf_switchd/bf_switchd.h>
     #include <bf_rt/bf_rt_table_key.h>
     #include <bf_rt/bf_rt_table_data.h>
-    #include <bf_rt/bf_rt_table.h>
-    #include <bf_pm/bf_pm_intf.h>
-    #include <bfsys/bf_sal/bf_sys_timer.h>
-    #include <mc_mgr/mc_mgr_intf.h>
-    #include <tofino/pdfixed/pd_conn_mgr.h>
     #include <tofino/pdfixed/pd_mirror.h>
+    #include <bfsys/bf_sal/bf_sys_timer.h>
+    #include <tofino/pdfixed/pd_conn_mgr.h>
 }
 
-#include <unordered_map>
 #include <vector>
 #include <string>
 #include <stdexcept>
+#include <unordered_map>
+
+#include "fmt/format.h"
+#include "fmt/ranges.h"
+#include "spdlog/spdlog.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
 
 #define MAX_BATCH_SIZE 64
 

@@ -4,21 +4,26 @@
 #define TIMER_PRESENTOR 0x0b0b0b0b
 
 #include "client.h"
-#include <nlohmann/json.hpp>
+#include "fmt/format.h"
+#include "fmt/ranges.h"
+#include "spdlog/spdlog.h"
+#include "nlohmann/json.hpp"
+#include "spdlog/sinks/stdout_color_sinks.h"
+
+#include <queue>
+#include <vector>
+#include <thread>
 #include <fstream>
 #include <sstream>
 #include <unistd.h>
+#include <iostream>
 #include <arpa/inet.h>
 #include <sys/epoll.h>
 #include <sys/socket.h>
-#include <sys/timerfd.h>
 #include <netinet/in.h>
+#include <sys/timerfd.h>
 #include <unordered_set>
 #include <unordered_map>
-#include <iostream>
-#include <vector>
-#include <queue>
-#include <thread>
 
 #define MAX_EPOLL_EVENTS 16
 

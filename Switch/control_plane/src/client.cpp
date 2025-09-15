@@ -1,5 +1,6 @@
 #include "client.h"
-#include <sstream>
+
+static auto logger = spdlog::stdout_color_mt("client");
 
 uint64_t SwitchClient_t::_parse_value(const nlohmann::json& value_json) {
     if (value_json.is_number()) {
@@ -21,6 +22,7 @@ uint64_t SwitchClient_t::_parse_value(const nlohmann::json& value_json) {
         }
     } else {
         throw std::invalid_argument("Unsupported value type: " + type_str);
+        SPDLOG_LOGGER_ERROR(logger, "Unsupported value type: {}", type_str);
     }
     return value;
 }
@@ -51,6 +53,7 @@ std::vector<KeyInput_t> SwitchClient_t::_parse_keys(const nlohmann::json& key_js
             keys.push_back(RangeKeyInput_t(key_name, start, end));
         } else {
             throw std::invalid_argument("Invalid match type: " + match_type_str);
+            SPDLOG_LOGGER_ERROR(logger, "Invalid match type: {}", match_type_str);
         }
     }
     return keys;
@@ -77,6 +80,7 @@ TableInfo_t* SwitchClient_t::_init_table_from_config(std::string config) {
         } else if (match_type_str == "range") {
             match_type = bf_rt_key_field_type_t::RANGE;
         } else {
+            SPDLOG_LOGGER_ERROR(logger, "Invalid match type: {}", match_type_str);
             throw std::invalid_argument("Invalid match type: " + match_type_str);
         }
         key_names.push_back({key_name, match_type});
