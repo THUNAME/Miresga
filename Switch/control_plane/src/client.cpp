@@ -135,24 +135,25 @@ void SwitchClient_t::_init_ports_from_config(std::string config_path) {
     for (auto& port_item : ports_config) {
         std::string port_name = port_item["name"];
         bf_port_speed_t port_speed;
-        if (port_item["speed"] == 100) {
-            port_speed = bf_port_speed_t::BF_PORT_SPEED_100G;
-        } else if (port_item["speed"] == 10) {
-            port_speed = bf_port_speed_t::BF_PORT_SPEED_10G;
-        } else if (port_item["speed"] == 1) {
-            port_speed = bf_port_speed_t::BF_PORT_SPEED_1G;
+        uint32_t speed = port_item["speed"];
+        if (speed == 100) {
+            port_speed = bf_port_speed_t::BF_SPEED_100G;
+        } else if (speed == 10) {
+            port_speed = bf_port_speed_t::BF_SPEED_10G;
+        } else if (speed == 1) {
+            port_speed = bf_port_speed_t::BF_SPEED_1G;
         } else {
-            SPDLOG_LOGGER_ERROR(logger, "Invalid port speed: {}", port_item["speed"]);
-            throw std::invalid_argument("Invalid port speed: " + std::to_string(port_item["speed"]));
+            SPDLOG_LOGGER_ERROR(logger, "Invalid port speed: {}", speed);
+            throw std::invalid_argument("Invalid port speed: " + std::to_string(speed));
         }
         bf_fec_type_t fec_type;
         if (port_item["fec_type"] == "rs") {
-            fec_type = bf_fec_type_t::BF_FEC_TYPE_RS;
+            fec_type = bf_fec_type_t::BF_FEC_TYP_RS;
         } else if (port_item["fec_type"] == "fc") {
-            fec_type = bf_fec_type_t::BF_FEC_TYPE_FC;
+            fec_type = bf_fec_type_t::BF_FEC_TYP_FC;
         } else {
             SPDLOG_LOGGER_ERROR(logger, "Invalid fec type: {}, set None", port_item["fec_type"]);
-            fec_type = bf_fec_type_t::BF_FEC_TYPE_NONE;
+            fec_type = bf_fec_type_t::BF_FEC_TYP_NONE;
         }
         port_info_list.push_back(PortInfo_t(port_name, port_speed, fec_type));
     }
