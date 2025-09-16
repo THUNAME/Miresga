@@ -1,0 +1,30 @@
+{
+    "15/0": {
+        "speed": 100, 
+        "fec_type": "rs"
+    }, 
+    "23/0": {
+        "speed": 100, 
+        "fec_type": "rs"
+    }, 
+    "16/0": {
+        "speed": 100, 
+        "fec_type": "rs"
+    }, 
+    "13/0": {
+        "speed": 100, 
+        "fec_type": "rs"
+    }, 
+    "14/0": {
+        "speed": 100, 
+        "fec_type": "rs"
+    }, 
+    "24/0": {
+        "speed": 100, 
+        "fec_type": "rs"
+    }, 
+    "9/0": {
+        "speed": 100, 
+        "fec_type": "rs"
+    }
+}
