@@ -176,13 +176,13 @@ void FrontendController_t::_remove_frontend(uint8_t id) {
         _client->finish_updating();
     } else if(num_active_id > 1){
         for (size_t idx = 0; idx < num_active_id; ++idx) {
-            SPDLOG_LOGGER_DEBUG(logger, "Sending rdma stop message to {}: {}", other_id, id);
             std::string stop_msg;
             stop_msg.append(1, static_cast<char>(RDMA_STOP));
             stop_msg.append(1, static_cast<char>(id));
             stop_msg.append(1, static_cast<char>(0));
             size_t need_update = 0;
             uint8_t other_id = _active_ids[idx];
+            SPDLOG_LOGGER_DEBUG(logger, "Sending rdma stop message to {}: {}", other_id, id);
             _id_2_num_crcs[other_id] += _id_2_sync_crcs[id][other_id].size();
             size_t num_crc = _id_2_sync_crcs[id][other_id].size();
             size_t target_each_sync_crcs = _id_2_num_crcs[other_id] / (num_active_id - 1);
@@ -265,10 +265,10 @@ void FrontendController_t::_update_rdma_info() {
         }
         SPDLOG_LOGGER_DEBUG(logger, "Updating RDMA info for {}: {}", _updating_id, id);
         SPDLOG_LOGGER_DEBUG(logger, "gid: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, qpn: {}, addr: {}, rkey: {}",
-                            _id_2_rdma_info[id][_updating_id].gid.raw[0], _id_2_rdma_info[id][_updating_id].gid.raw[1], _id_2_rdma_info[id][_updating_id].gid.raw[2], _id_2_rdma_info[id][_updating_id].gid.raw[3],
-                            _id_2_rdma_info[id][_updating_id].gid.raw[4], _id_2_rdma_info[id][_updating_id].gid.raw[5], _id_2_rdma_info[id][_updating_id].gid.raw[6], _id_2_rdma_info[id][_updating_id].gid.raw[7],
-                            _id_2_rdma_info[id][_updating_id].gid.raw[8], _id_2_rdma_info[id][_updating_id].gid.raw[9], _id_2_rdma_info[id][_updating_id].gid.raw[10], _id_2_rdma_info[id][_updating_id].gid.raw[11],
-                            _id_2_rdma_info[id][_updating_id].gid.raw[12], _id_2_rdma_info[id][_updating_id].gid.raw[13], _id_2_rdma_info[id][_updating_id].gid.raw[14], _id_2_rdma_info[id][_updating_id].gid.raw[15],
+                            _id_2_rdma_info[id][_updating_id].gid[0], _id_2_rdma_info[id][_updating_id].gid[1], _id_2_rdma_info[id][_updating_id].gid[2], _id_2_rdma_info[id][_updating_id].gid[3],
+                            _id_2_rdma_info[id][_updating_id].gid[4], _id_2_rdma_info[id][_updating_id].gid[5], _id_2_rdma_info[id][_updating_id].gid[6], _id_2_rdma_info[id][_updating_id].gid[7],
+                            _id_2_rdma_info[id][_updating_id].gid[8], _id_2_rdma_info[id][_updating_id].gid[9], _id_2_rdma_info[id][_updating_id].gid[10], _id_2_rdma_info[id][_updating_id].gid[11],
+                            _id_2_rdma_info[id][_updating_id].gid[12], _id_2_rdma_info[id][_updating_id].gid[13], _id_2_rdma_info[id][_updating_id].gid[14], _id_2_rdma_info[id][_updating_id].gid[15],
                             _id_2_rdma_info[id][_updating_id].qpn, _id_2_rdma_info[id][_updating_id].addr, _id_2_rdma_info[id][_updating_id].rkey);
         SPDLOG_LOGGER_DEBUG(logger, "Sync CRCs: {}", fmt::join(_id_2_sync_crcs[_updating_id][id], ","));
         add_msg.append(1, static_cast<char>(id));
@@ -416,10 +416,10 @@ void FrontendController_t::_main_loop() {
                                 _id_2_rdma_info[id][remote_id] = RDMAInfo_t();
                                 memcpy(&_id_2_rdma_info[id][remote_id], recv_buffer + now_bytes, sizeof(RDMAInfo_t));
                                 SPDLOG_LOGGER_DEBUG(logger, "gid: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, qpn: {}, addr: {}, rkey: {}",
-                                                    _id_2_rdma_info[id][remote_id].gid.raw[0], _id_2_rdma_info[id][remote_id].gid.raw[1], _id_2_rdma_info[id][remote_id].gid.raw[2], _id_2_rdma_info[id][remote_id].gid.raw[3],
-                                                    _id_2_rdma_info[id][remote_id].gid.raw[4], _id_2_rdma_info[id][remote_id].gid.raw[5], _id_2_rdma_info[id][remote_id].gid.raw[6], _id_2_rdma_info[id][remote_id].gid.raw[7],
-                                                    _id_2_rdma_info[id][remote_id].gid.raw[8], _id_2_rdma_info[id][remote_id].gid.raw[9], _id_2_rdma_info[id][remote_id].gid.raw[10], _id_2_rdma_info[id][remote_id].gid.raw[11],
-                                                    _id_2_rdma_info[id][remote_id].gid.raw[12], _id_2_rdma_info[id][remote_id].gid.raw[13], _id_2_rdma_info[id][remote_id].gid.raw[14], _id_2_rdma_info[id][remote_id].gid.raw[15],
+                                                    _id_2_rdma_info[id][remote_id].gid[0], _id_2_rdma_info[id][remote_id].gid[1], _id_2_rdma_info[id][remote_id].gid[2], _id_2_rdma_info[id][remote_id].gid[3],
+                                                    _id_2_rdma_info[id][remote_id].gid[4], _id_2_rdma_info[id][remote_id].gid[5], _id_2_rdma_info[id][remote_id].gid[6], _id_2_rdma_info[id][remote_id].gid[7],
+                                                    _id_2_rdma_info[id][remote_id].gid[8], _id_2_rdma_info[id][remote_id].gid[9], _id_2_rdma_info[id][remote_id].gid[10], _id_2_rdma_info[id][remote_id].gid[11],
+                                                    _id_2_rdma_info[id][remote_id].gid[12], _id_2_rdma_info[id][remote_id].gid[13], _id_2_rdma_info[id][remote_id].gid[14], _id_2_rdma_info[id][remote_id].gid[15],
                                                     _id_2_rdma_info[id][remote_id].qpn, _id_2_rdma_info[id][remote_id].addr, _id_2_rdma_info[id][remote_id].rkey);
                                 now_bytes += sizeof(RDMAInfo_t);
                             }
