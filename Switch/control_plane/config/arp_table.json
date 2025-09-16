@@ -92,9 +92,13 @@
             "action_name": "SwitchIngress.reply_arp"
         }
     ], 
-    "data_names": [
-        "arp_mac"
-    ], 
     "table_name": "SwitchIngress.arp_table", 
-    "action_name": "SwitchIngress.reply_arp"
+    "actions": [
+        {
+            "data_names": [
+                "arp_mac"
+            ], 
+            "action_name": "SwitchIngress.reply_arp"
+        }
+    ]
 }

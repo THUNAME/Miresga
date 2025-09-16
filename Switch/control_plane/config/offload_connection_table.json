@@ -9,11 +9,13 @@
             "name": "ig_md.cport"
         }
     ], 
-    "action_names": [
-        "SwitchIngress.offload_connection"
-    ], 
     "table_name": "SwitchIngress.offload_connection_table", 
-    "data_names": [
-        "d_index"
+    "actions": [
+        {
+            "data_names": [
+                "d_index"
+            ], 
+            "action_name": "SwitchIngress.oft_hit"
+        }
     ]
 }

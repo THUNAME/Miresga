@@ -205,13 +205,15 @@
             "action_name": "SwitchIngress.set_egress_port"
         }
     ], 
-    "action_names": [
-        "SwitchIngress.set_egress_port"
-    ], 
     "table_name": "SwitchIngress.dest_to_egress_port_table", 
-    "data_names": [
-        "src_mac", 
-        "dst_mac", 
-        "dst_port"
+    "actions": [
+        {
+            "data_names": [
+                "src_mac", 
+                "dst_mac", 
+                "dst_port"
+            ], 
+            "action_name": "SwitchIngress.set_egress_port"
+        }
     ]
 }

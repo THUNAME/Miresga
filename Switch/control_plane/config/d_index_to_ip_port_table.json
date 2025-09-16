@@ -53,12 +53,14 @@
             "action_name": "SwitchEgress.set_dst_ip_port"
         }
     ], 
-    "action_names": [
-        "SwitchEgress.set_dst_ip_port"
-    ], 
     "table_name": "SwitchEgress.d_index_to_ip_port_table", 
-    "data_names": [
-        "dst_ip", 
-        "dst_port"
+    "actions": [
+        {
+            "data_names": [
+                "dst_ip", 
+                "dst_port"
+            ], 
+            "action_name": "SwitchEgress.set_dst_ip_port"
+        }
     ]
 }

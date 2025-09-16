@@ -2,6 +2,7 @@
 #include "client.h"
 #include <iostream>
 
+#define PROG_NAME "miresga_switch_data_plane"
 #define CONFIG_PATH "../config.json"
 
 int main(int argc, char* argv[]) {
@@ -9,6 +10,7 @@ int main(int argc, char* argv[]) {
     if (argc > 1) {
         config_path = argv[1];
     }
+    SwitchInfo_t::init_switch(PROG_NAME);
     SwitchClient_t::init_client();
     FrontendController_t::init_frontend_controller(config_path);
     FrontendController_t* controller = FrontendController_t::get_instance();

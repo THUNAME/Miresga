@@ -64,6 +64,7 @@ TableInfo_t* SwitchClient_t::_init_table_from_config(std::string config) {
     nlohmann::json config_json;
     ifs >> config_json;
     std::string table_name = config_json["table_name"];
+    SPDLOG_LOGGER_INFO(logger, "Init table {} from {}", table_name, config);
     std::vector<std::pair<std::string, bf_rt_key_field_type_t>> key_names;
     auto key_config = config_json["key_names"];
     assert(key_config.is_array());
@@ -85,22 +86,20 @@ TableInfo_t* SwitchClient_t::_init_table_from_config(std::string config) {
         }
         key_names.push_back({key_name, match_type});
     }
-    auto action_config = config_json["action_names"];
+    std::unordered_map<std::string, std::vector<std::string>> action_name_to_data_names;
+    auto action_config = config_json["actions"];
     assert(action_config.is_array());
-    std::vector<std::string> action_names;
-    for (auto& action_item : action_config) {
-        std::string action_name = action_item.get<std::string>();
-        action_names.push_back(action_name);
-    }
-    auto data_config = config_json["data_names"];
-    assert(data_config.is_array());
-    std::vector<std::string> data_names;
-    for (auto& data_item : data_config) {
-        std::string data_name = data_item.get<std::string>();
-        data_names.push_back(data_name);
+    for (auto& action : action_config) {
+        std::string action_name = action["action_name"];
+        auto data_names = action["data_names"];
+        assert(data_names.is_array());
+        action_name_to_data_names[action_name] = std::vector<std::string>();
+        for (auto& data_name : data_names) {
+            action_name_to_data_names[action_name].push_back(data_name.get<std::string>());
+        }
     }
     bool enable_batch = config_json.value("enable_batch", false);
-    TableInfo_t* table = new TableInfo_t(table_name, key_names, data_names, action_names, enable_batch);
+    TableInfo_t* table = new TableInfo_t(table_name, key_names, action_name_to_data_names, enable_batch);
     if (config_json.contains("initial_entries")) {
         auto initial_entries = config_json["initial_entries"];
         assert(initial_entries.is_array());
@@ -109,7 +108,7 @@ TableInfo_t* SwitchClient_t::_init_table_from_config(std::string config) {
         std::string action_name;
         for (auto& entry : initial_entries) {
             key_field_values.push_back(_parse_keys(entry["keys"]));
-            action_name = entry["action"];
+            action_name = entry["action_name"];
             auto data_config = entry["data"];
             assert(data_config.is_array());
             std::vector<DataInput_t> data_fields;
@@ -129,10 +128,10 @@ void SwitchClient_t::_init_ports_from_config(std::string config_path) {
     std::ifstream ifs(config_path);
     nlohmann::json config_json;
     ifs >> config_json;
-    auto ports_config = config_json["ports"];
-    assert(ports_config.is_array());
+    ifs.close();
+    assert(config_json.is_array());
     std::vector<PortInfo_t> port_info_list;
-    for (auto& port_item : ports_config) {
+    for (auto& port_item : config_json) {
         std::string port_name = port_item["name"];
         bf_port_speed_t port_speed;
         uint32_t speed = port_item["speed"];

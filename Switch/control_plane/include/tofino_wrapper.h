@@ -114,7 +114,7 @@ private:
     bool _enable_batch;
 public:
     TableInfo_t(std::string table_name, std::vector<std::pair<std::string, bf_rt_key_field_type_t>> key_names,
-                std::vector<std::string> data_names, std::vector<std::string> action_names, bool enable_batch=false);
+                std::unordered_map<std::string, std::vector<std::string>> action_name_to_data_names, bool enable_batch=false);
     ~TableInfo_t();
     void add_entry(std::vector<std::vector<KeyInput_t>> key_field_values,
                    std::string action_name,

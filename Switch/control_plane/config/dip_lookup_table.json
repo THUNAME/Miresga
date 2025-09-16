@@ -47,8 +47,11 @@
             "action_name": "SwitchIngress.dip_hit"
         }
     ], 
-    "action_names": [
-        "SwitchIngress.dip_hit"
-    ], 
-    "table_name": "SwitchIngress.dip_lookup_table"
+    "table_name": "SwitchIngress.dip_lookup_table", 
+    "actions": [
+        {
+            "data_names": [], 
+            "action_name": "SwitchIngress.dip_hit"
+        }
+    ]
 }

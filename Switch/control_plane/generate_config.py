@@ -12,8 +12,7 @@ arp_table_config["key_names"] = [
     {"name": "hdr.arp.opcode", "match_type": "exact"},
     {"name": "hdr.arp.target_proto_addr", "match_type": "exact"}
 ]
-arp_table_config["action_name"] = ingress_prefix + "reply_arp"
-arp_table_config["data_names"] = ["arp_mac"]
+arp_table_config["actions"] = [{"action_name": ingress_prefix + "reply_arp", "data_names": ["arp_mac"]}]
 arp_table_config["initial_entries"] = [
     {
         "keys": [
@@ -56,8 +55,10 @@ offload_connection_table_config["key_names"] = [
     {"name": "ig_md.cip", "match_type": "exact"},
     {"name": "ig_md.cport", "match_type": "exact"}
 ]
-offload_connection_table_config["action_names"] = [ingress_prefix + "offload_connection"]
-offload_connection_table_config["data_names"] = ["d_index"]
+offload_connection_table_config["actions"] = [{
+    "action_name": ingress_prefix + "oft_hit",
+    "data_names": ["d_index"]
+}]
 with open("config/offload_connection_table.json", "w") as f:
     json.dump(offload_connection_table_config, f, indent=4)
 
@@ -67,23 +68,30 @@ dip_lookup_table_config["key_names"] = [
     {"name": "hdr.ipv4.src_addr", "match_type": "exact"},
     {"name": "hdr.tcp.src_port", "match_type": "exact"}
 ]
-dip_lookup_table_config["action_names"] = [ingress_prefix + "dip_hit"]
+dip_lookup_table_config["actions"] = [{
+    "action_name": ingress_prefix + "dip_hit",
+    "data_names": []
+}]
 dip_lookup_table_config["initial_entries"] = []
 dest_to_egress_port_table_config = {}
 dest_to_egress_port_table_config["table_name"] = ingress_prefix + "dest_to_egress_port_table"
 dest_to_egress_port_table_config["key_names"] = [
     {"name": "hdr.ipv4.dst_addr", "match_type": "exact"}
 ]
-dest_to_egress_port_table_config["action_names"] = [ingress_prefix + "set_egress_port"]
-dest_to_egress_port_table_config["data_names"] = ["src_mac", "dst_mac", "dst_port"]
+dest_to_egress_port_table_config["actions"] = [{
+    "action_name": ingress_prefix + "set_egress_port",
+    "data_names": ["src_mac", "dst_mac", "dst_port"]
+}]
 dest_to_egress_port_table_config["initial_entries"] = []
 d_index_to_egress_port_table_config = {}
 d_index_to_egress_port_table_config["table_name"] = ingress_prefix + "d_index_to_egress_port_table"
 d_index_to_egress_port_table_config["key_names"] = [
     {"name": "hdr.bridged.index", "match_type": "exact"}
 ]
-d_index_to_egress_port_table_config["action_names"] = [ingress_prefix + "set_egress_port"]
-d_index_to_egress_port_table_config["data_names"] = ["src_mac", "dst_mac", "dst_port"]
+d_index_to_egress_port_table_config["actions"] = [{
+    "action_name": ingress_prefix + "set_egress_port",
+    "data_names": ["src_mac", "dst_mac", "dst_port"]
+}]
 d_index_to_egress_port_table_config["initial_entries"] = []
 
 d_index_to_ip_port_table_config = {}
@@ -91,8 +99,10 @@ d_index_to_ip_port_table_config["table_name"] = egress_prefix + "d_index_to_ip_p
 d_index_to_ip_port_table_config["key_names"] = [
     {"name": "eg_md.bridged.d_index", "match_type": "exact"}
 ]
-d_index_to_ip_port_table_config["action_names"] = [egress_prefix + "set_dst_ip_port"]
-d_index_to_ip_port_table_config["data_names"] = ["dst_ip", "dst_port"]
+d_index_to_ip_port_table_config["actions"] = [{
+    "action_name": egress_prefix + "set_dst_ip_port",
+    "data_names": ["dst_ip", "dst_port"]
+}]
 d_index_to_ip_port_table_config["initial_entries"] = []
 for i in range(len(config["backend_servers_info"])):
     backend_ip = config["backend_servers_info"][i]["ip"]
@@ -196,27 +206,25 @@ lb_index_to_egress_port_table_0_config["table_name"] = ingress_prefix + "lb_inde
 lb_index_to_egress_port_table_0_config["key_names"] = [
     {"name": "ig_md.crc_hash_res", "match_type": "exact"}
 ]
-lb_index_to_egress_port_table_0_config["action_names"] = [ingress_prefix + "set_egress_port"]
-lb_index_to_egress_port_table_0_config["data_names"] = ["src_mac", "dst_mac", "dst_port"]
+lb_index_to_egress_port_table_0_config["actions"] = [{
+    "action_name": ingress_prefix + "set_egress_port",
+    "data_names": ["src_mac", "dst_mac", "dst_port"]
+}]
 lb_index_to_egress_port_table_1_config = {}
 lb_index_to_egress_port_table_1_config["table_name"] = ingress_prefix + "lb_index_to_egress_port_table_1"
 lb_index_to_egress_port_table_1_config["key_names"] = [
     {"name": "ig_md.crc_hash_res", "match_type": "exact"}
 ]
-lb_index_to_egress_port_table_1_config["action_names"] = [ingress_prefix + "set_egress_port"]
-lb_index_to_egress_port_table_1_config["data_names"] = ["src_mac", "dst_mac", "dst_port"]
+lb_index_to_egress_port_table_1_config["actions"] = [{
+    "action_name": ingress_prefix + "set_egress_port",
+    "data_names": ["src_mac", "dst_mac", "dst_port"]
+}]
 with open("config/lb_index_to_egress_port_table_0.json", "w") as f:
     json.dump(lb_index_to_egress_port_table_0_config, f, indent=4)
 with open("config/lb_index_to_egress_port_table_1.json", "w") as f:
     json.dump(lb_index_to_egress_port_table_1_config, f, indent=4)
 
 ports_info = config["ports"]
-ports_config = {}
-for port_info in ports_info:
-    ports_config[port_info["name"]] = {
-        "speed": port_info["speed"],
-        "fec_type": port_info["fec_type"]
-    }
     
 with open("config/ports.json", "w") as f:
-    json.dump(ports_config, f, indent=4)
+    json.dump(ports_info, f, indent=4)

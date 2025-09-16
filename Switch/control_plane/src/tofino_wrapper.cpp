@@ -225,11 +225,11 @@ void SwitchInfo_t::clear_table(const bf_rt_table_hdl* table_hdl) {
 }
 
 TableInfo_t::TableInfo_t(std::string table_name, std::vector<std::pair<std::string, bf_rt_key_field_type_t>> key_names, 
-                         std::vector<std::string> data_names, std::vector<std::string> action_names, bool enable_batch)
+                         std::unordered_map<std::string, std::vector<std::string>> action_name_to_data_names,  bool enable_batch)
 {
     SPDLOG_LOGGER_DEBUG(logger, "Initializing Table {}", table_name);
     _enable_batch = enable_batch;
-    if (_enable_batch && action_names.size() > 1) { 
+    if (_enable_batch && action_name_to_data_names.size() > 1) { 
         SPDLOG_LOGGER_WARN(logger, "Batch mode only supports one action per table. Disabling batch mode.");
         _enable_batch = false;
     }
@@ -247,16 +247,7 @@ TableInfo_t::TableInfo_t(std::string table_name, std::vector<std::pair<std::stri
         }
         _key_name_2_id_map[key_name.first] = std::make_pair(key_id, key_name.second);
     }
-    for (const auto& data_name : data_names) {
-        if (bf_rt_data_field_id_get(_table_hdl, 
-                                    data_name.data(), 
-                                    &data_id) != BF_SUCCESS) {
-            SPDLOG_LOGGER_ERROR(logger, "Failed to get data field id for {}", data_name);
-            throw std::runtime_error("Failed to get data field id for " + data_name);
-        }
-        _data_name_2_id_map[data_name] = data_id;
-    }
-    for (const auto& action_name : action_names) {
+    for (const auto& [action_name, data_names] : action_name_to_data_names) {
         if (bf_rt_action_name_to_id(_table_hdl, 
                                     action_name.data(), 
                                     &action_id) != BF_SUCCESS) {
@@ -264,6 +255,16 @@ TableInfo_t::TableInfo_t(std::string table_name, std::vector<std::pair<std::stri
             throw std::runtime_error("Failed to get action id for " + action_name);
         }
         _action_name_2_id_map[action_name] = action_id;
+        for (const auto& data_name : data_names) {
+            if (bf_rt_data_field_id_with_action_get(_table_hdl,
+                                                    data_name.c_str(),
+                                                    action_id,
+                                                    &data_id) != BF_SUCCESS) {
+                SPDLOG_LOGGER_ERROR(logger, "Failed to get data id for {}", data_name);
+                throw std::runtime_error("Failed to get data id for {}" + data_name);
+            }
+            _data_name_2_id_map[data_name] = data_id;
+        }
     }
     for (size_t i = 0; i < MAX_BATCH_SIZE; i++) {
         if (bf_rt_table_key_allocate(_table_hdl, &key_hdl) != BF_SUCCESS) {
