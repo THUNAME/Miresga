@@ -1,64 +1,64 @@
 {
-    "table_name": "SwitchEgress.d_index_to_ip_port_table",
     "key_names": [
         {
-            "name": "eg_md.bridged.d_index",
-            "match_type": "exact"
+            "match_type": "exact", 
+            "name": "eg_md.bridged.d_index"
         }
-    ],
-    "action_names": [
-        "SwitchEgress.set_dst_ip_port"
-    ],
-    "data_names": [
-        "dst_ip",
-        "dst_port"
-    ],
+    ], 
     "initial_entries": [
         {
             "keys": [
                 {
-                    "name": "eg_md.bridged.d_index",
-                    "value": 0,
-                    "match_type": "exact"
+                    "match_type": "exact", 
+                    "name": "eg_md.bridged.d_index", 
+                    "value": 0
                 }
-            ],
-            "action_name": "SwitchEgress.set_dst_ip_port",
+            ], 
             "datas": [
                 {
-                    "name": "dst_ip",
+                    "name": "dst_ip", 
                     "value": {
-                        "raw": "10.0.2.2",
+                        "raw": "10.0.2.2", 
                         "type": "ipv4"
                     }
-                },
+                }, 
                 {
-                    "name": "dst_port",
+                    "name": "dst_port", 
                     "value": 80
                 }
-            ]
-        },
+            ], 
+            "action_name": "SwitchEgress.set_dst_ip_port"
+        }, 
         {
             "keys": [
                 {
-                    "name": "eg_md.bridged.d_index",
-                    "value": 1,
-                    "match_type": "exact"
+                    "match_type": "exact", 
+                    "name": "eg_md.bridged.d_index", 
+                    "value": 1
                 }
-            ],
-            "action_name": "SwitchEgress.set_dst_ip_port",
+            ], 
             "datas": [
                 {
-                    "name": "dst_ip",
+                    "name": "dst_ip", 
                     "value": {
-                        "raw": "10.0.2.3",
+                        "raw": "10.0.2.3", 
                         "type": "ipv4"
                     }
-                },
+                }, 
                 {
-                    "name": "dst_port",
+                    "name": "dst_port", 
                     "value": 80
                 }
-            ]
+            ], 
+            "action_name": "SwitchEgress.set_dst_ip_port"
         }
+    ], 
+    "action_names": [
+        "SwitchEgress.set_dst_ip_port"
+    ], 
+    "table_name": "SwitchEgress.d_index_to_ip_port_table", 
+    "data_names": [
+        "dst_ip", 
+        "dst_port"
     ]
 }
