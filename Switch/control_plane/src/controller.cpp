@@ -404,7 +404,7 @@ void FrontendController_t::_main_loop() {
                 }
                 else {
                     OperationType_t op_type = static_cast<OperationType_t>(recv_buffer[0]);
-                    SPDLOG_LOGGER_DEBUG(logger, "Operation type: {}", op_type);
+                    SPDLOG_LOGGER_DEBUG(logger, "Operation type: {}", static_cast<uint8_t>(op_type));
                     switch (op_type) {
                         case(OperationType_t::UPDATE_RDMA_INFO): {
                             uint8_t num_update = recv_buffer[1];
