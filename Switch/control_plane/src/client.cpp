@@ -147,15 +147,17 @@ void SwitchClient_t::_init_ports_from_config(std::string config_path) {
             throw std::invalid_argument("Invalid port speed: " + std::to_string(speed));
         }
         bf_fec_type_t fec_type;
-        if (port_item["fec_type"] == "rs") {
+        std::string fec_str = port_item["fec_type"];
+        if (fec_str == "rs") {
             fec_type = bf_fec_type_t::BF_FEC_TYP_RS;
-        } else if (port_item["fec_type"] == "fc") {
+        } else if (fec_str == "fc") {
             fec_type = bf_fec_type_t::BF_FEC_TYP_FC;
         } else {
-            SPDLOG_LOGGER_ERROR(logger, "Invalid fec type: {}, set None", port_item["fec_type"]);
+            SPDLOG_LOGGER_ERROR(logger, "Invalid fec type: {}, set None", fec_str);
             fec_type = bf_fec_type_t::BF_FEC_TYP_NONE;
         }
-        port_info_list.push_back(PortInfo_t(port_name, port_speed, fec_type));
+        PortInfo_t port_info = {port_name, port_speed, fec_type};
+        port_info_list.push_back(port_info);
     }
     _switch_info->init_ports(port_info_list);
 }
