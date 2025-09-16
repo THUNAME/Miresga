@@ -209,3 +209,14 @@ with open("config/lb_index_to_egress_port_table_0.json", "w") as f:
     json.dump(lb_index_to_egress_port_table_0_config, f, indent=4)
 with open("config/lb_index_to_egress_port_table_1.json", "w") as f:
     json.dump(lb_index_to_egress_port_table_1_config, f, indent=4)
+
+ports_info = config["ports"]
+ports_config = {}
+for port_info in ports_info:
+    ports_config[port_info["name"]] = {
+        "speed": port_info["speed"],
+        "fec_type": port_info["fec_type"]
+    }
+    
+with open("config/ports.json", "w") as f:
+    json.dump(ports_config, f, indent=4)

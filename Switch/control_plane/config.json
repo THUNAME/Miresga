@@ -87,5 +87,42 @@
         "ip": "10.0.3.2",
         "mac": "00:08:00:00:00:02",
         "port": 80
-    }
+    },
+    "ports": [
+        {
+            "name": "9/0",
+            "speed": 100,
+            "fec_type": "rs"
+        },
+        {
+            "name": "13/0",
+            "speed": 100,
+            "fec_type": "rs"
+        },
+        {
+            "name": "14/0",
+            "speed": 100,
+            "fec_type": "rs"
+        },
+        {
+            "name": "15/0",
+            "speed": 100,
+            "fec_type": "rs"
+        },
+        {
+            "name": "16/0",
+            "speed": 100,
+            "fec_type": "rs"
+        },
+        {
+            "name": "23/0",
+            "speed": 100,
+            "fec_type": "rs"
+        },
+        {
+            "name": "24/0",
+            "speed": 100,
+            "fec_type": "rs"
+        }
+    ]
 }

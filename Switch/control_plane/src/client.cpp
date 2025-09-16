@@ -125,8 +125,43 @@ TableInfo_t* SwitchClient_t::_init_table_from_config(std::string config) {
     return table;
 }
 
+void SwitchClient_t::_init_ports_from_config(std::string config_path) {
+    std::ifstream ifs(config_path);
+    nlohmann::json config_json;
+    ifs >> config_json;
+    auto ports_config = config_json["ports"];
+    assert(ports_config.is_array());
+    std::vector<PortInfo_t> port_info_list;
+    for (auto& port_item : ports_config) {
+        std::string port_name = port_item["name"];
+        bf_port_speed_t port_speed;
+        if (port_item["speed"] == 100) {
+            port_speed = bf_port_speed_t::BF_PORT_SPEED_100G;
+        } else if (port_item["speed"] == 10) {
+            port_speed = bf_port_speed_t::BF_PORT_SPEED_10G;
+        } else if (port_item["speed"] == 1) {
+            port_speed = bf_port_speed_t::BF_PORT_SPEED_1G;
+        } else {
+            SPDLOG_LOGGER_ERROR(logger, "Invalid port speed: {}", port_item["speed"]);
+            throw std::invalid_argument("Invalid port speed: " + std::to_string(port_item["speed"]));
+        }
+        bf_fec_type_t fec_type;
+        if (port_item["fec_type"] == "rs") {
+            fec_type = bf_fec_type_t::BF_FEC_TYPE_RS;
+        } else if (port_item["fec_type"] == "fc") {
+            fec_type = bf_fec_type_t::BF_FEC_TYPE_FC;
+        } else {
+            SPDLOG_LOGGER_ERROR(logger, "Invalid fec type: {}, set None", port_item["fec_type"]);
+            fec_type = bf_fec_type_t::BF_FEC_TYPE_NONE;
+        }
+        port_info_list.push_back(PortInfo_t(port_name, port_speed, fec_type));
+    }
+    _switch_info->init_ports(port_info_list);
+}
+
 SwitchClient_t::SwitchClient_t(std::string config_dir) {
     _switch_info = SwitchInfo_t::get_instance();
+    _init_ports_from_config(config_dir + "ports.json");
     _arp_table = _init_table_from_config(config_dir + "arp_table.json");
     _dip_lookup_table = _init_table_from_config(config_dir + "dip_lookup_table.json");
     _dest_to_egress_port_table = _init_table_from_config(config_dir + "dest_to_egress_port_table.json");

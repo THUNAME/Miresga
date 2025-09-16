@@ -66,6 +66,7 @@ private:
     static uint64_t _parse_value(const nlohmann::json& value_json);
     static std::vector<KeyInput_t> _parse_keys(const nlohmann::json& key_json);
     static TableInfo_t* _init_table_from_config(std::string config_path);
+    void _init_ports_from_config(std::string config_path);
     SwitchClient_t(std::string config_dir=CONFIG_DIR);
     ~SwitchClient_t();
 public:
