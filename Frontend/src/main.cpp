@@ -9,11 +9,6 @@
 #include "nlohmann/json.hpp"
 #include "controller_client.h"
 
-
-
-
-
-
 #include <iostream>
 #include <fstream>
 #include <sstream>
@@ -22,6 +17,11 @@
 using json = nlohmann::json;
 
 int main(int argc, char** argv) {
+    #if DEBUG == 1
+    spdlog::set_level(spdlog::level::debug);
+    #else
+    spdlog::set_level(spdlog::level::info);
+    #endif
     std::ifstream dpdk_config_fs("../config/dpdk_config.json");
     json dpdk_config_json;
     dpdk_config_fs >> dpdk_config_json;
