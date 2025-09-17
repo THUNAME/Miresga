@@ -2,7 +2,7 @@
     "key_names": [
         {
             "match_type": "exact", 
-            "name": "eg_md.bridged.d_index"
+            "name": "eg_md.bridged.index"
         }
     ], 
     "initial_entries": [
@@ -10,7 +10,7 @@
             "keys": [
                 {
                     "match_type": "exact", 
-                    "name": "eg_md.bridged.d_index", 
+                    "name": "eg_md.bridged.index", 
                     "value": 0
                 }
             ], 
@@ -33,7 +33,7 @@
             "keys": [
                 {
                     "match_type": "exact", 
-                    "name": "eg_md.bridged.d_index", 
+                    "name": "eg_md.bridged.index", 
                     "value": 1
                 }
             ], 

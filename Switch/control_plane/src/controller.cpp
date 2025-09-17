@@ -543,6 +543,7 @@ void FrontendController_t::stop() {
 }
 
 FrontendController_t::FrontendController_t(std::string config_path) {
+    SPDLOG_LOGGER_INFO(logger, "Initializing Controller.");
     _socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (_socket_fd < 0) {
         SPDLOG_LOGGER_ERROR(logger, "Failed to create socket");
@@ -556,9 +557,9 @@ FrontendController_t::FrontendController_t(std::string config_path) {
     struct sockaddr_in addr;
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(9999);
+    addr.sin_port = htons(12345);
     if (bind(_socket_fd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        SPDLOG_LOGGER_ERROR(logger, "Failed to bind socket");
+        SPDLOG_LOGGER_ERROR(logger, "Failed to bind socket: {}", strerror(errno));
         throw std::runtime_error("Failed to bind socket");
     }
     if (listen(_socket_fd, 10) < 0) {
@@ -636,9 +637,9 @@ FrontendController_t::FrontendController_t(std::string config_path) {
         _d_index_2_backend_server_info[d_index] = server_info_entry;
         d_index++;
     }
-    _virtual_server_info.ip = inet_addr(config_json["virtual_server"]["ip"].get<std::string>().c_str());
-    _virtual_server_info.port = htons(config_json["virtual_server"]["port"]);
-    std::string mac_str = config_json["virtual_server"]["mac"];
+    _virtual_server_info.ip = inet_addr(config_json["virtual_server_info"]["ip"].get<std::string>().c_str());
+    _virtual_server_info.port = htons(config_json["virtual_server_info"]["port"]);
+    std::string mac_str = config_json["virtual_server_info"]["mac"];
     std::stringstream mac_ss(mac_str);
     std::string byte_str;
     int i = 0;

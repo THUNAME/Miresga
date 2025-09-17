@@ -109,7 +109,7 @@ TableInfo_t* SwitchClient_t::_init_table_from_config(std::string config) {
         for (auto& entry : initial_entries) {
             key_field_values.push_back(_parse_keys(entry["keys"]));
             action_name = entry["action_name"];
-            auto data_config = entry["data"];
+            auto data_config = entry["datas"];
             assert(data_config.is_array());
             std::vector<DataInput_t> data_fields;
             for (auto& data_item : data_config) {
@@ -174,8 +174,8 @@ SwitchClient_t::SwitchClient_t(std::string config_dir) {
     _offload_connection_table = _init_table_from_config(config_dir + "offload_connection_table.json");
     _updating_flag_reg = new RegisterInfo_t("SwitchIngress.updating_flag_reg");
     _new_tb_idx_reg = new RegisterInfo_t("SwitchIngress.new_tb_idx_reg");
-    _bloom_filter_reg_1 = new RegisterInfo_t("SwitchIngress.bloom_filter_1_reg");
-    _bloom_filter_reg_2 = new RegisterInfo_t("SwitchIngress.bloom_filter_2_reg");
+    _bloom_filter_reg_1 = new RegisterInfo_t("SwitchIngress.bloomfilter_1_reg");
+    _bloom_filter_reg_2 = new RegisterInfo_t("SwitchIngress.bloomfilter_2_reg");
     _new_tb_idx = 0;
     _bloom_filter_reg_1->clear_reg();
     _bloom_filter_reg_2->clear_reg();

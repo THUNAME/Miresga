@@ -97,7 +97,7 @@ d_index_to_egress_port_table_config["initial_entries"] = []
 d_index_to_ip_port_table_config = {}
 d_index_to_ip_port_table_config["table_name"] = egress_prefix + "d_index_to_ip_port_table"
 d_index_to_ip_port_table_config["key_names"] = [
-    {"name": "eg_md.bridged.d_index", "match_type": "exact"}
+    {"name": "eg_md.bridged.index", "match_type": "exact"}
 ]
 d_index_to_ip_port_table_config["actions"] = [{
     "action_name": egress_prefix + "set_dst_ip_port",
@@ -115,7 +115,8 @@ for i in range(len(config["backend_servers_info"])):
                 {"name": "hdr.ipv4.src_addr", "value": {"raw": backend_ip, "type": "ipv4"}, "match_type": "exact"},
                 {"name": "hdr.tcp.src_port", "value": config["backend_servers_info"][i]["port"], "match_type": "exact"}
             ],
-            "action_name": ingress_prefix + "dip_hit"
+            "action_name": ingress_prefix + "dip_hit",
+            "datas": []
         }
     )
     dest_to_egress_port_table_config["initial_entries"].append(
@@ -147,7 +148,7 @@ for i in range(len(config["backend_servers_info"])):
     d_index_to_ip_port_table_config["initial_entries"].append(
         {
             "keys": [
-                {"name": "eg_md.bridged.d_index", "value": i, "match_type": "exact"}
+                {"name": "eg_md.bridged.index", "value": i, "match_type": "exact"}
             ],
             "action_name": egress_prefix + "set_dst_ip_port",
             "datas": [
