@@ -2,7 +2,7 @@
 #include "client.h"
 #include <iostream>
 
-#define PROG_NAME "miresga_switch_data_plane"
+#define PROG_NAME "MiresgaSwitchDataPlane"
 #define CONFIG_PATH "../config.json"
 
 auto logger = spdlog::stdout_color_mt("main");
