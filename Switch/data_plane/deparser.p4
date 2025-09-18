@@ -90,7 +90,7 @@ control SwitchEgressDeparser(packet_out pkt,
                 }
             );
         }
-        else{
+        else if(hdr.tcp.isValid()){
             hdr.tcp.checksum = tcp_checksum.update(
                 {
                     hdr.ipv4.src_addr,

@@ -371,7 +371,6 @@ control SwitchIngress(inout header_t hdr,
         get_new_tb_idx_table.apply();
         if(hdr.arp.isValid()) {
             arp_table.apply();
-            ig_intr_tm_md.bypass_egress = 1w1;
         }
         else if(hdr.tcp.isValid()) {
             calculate_payload_table.apply();
@@ -381,18 +380,14 @@ control SwitchIngress(inout header_t hdr,
             calculate_crc8_table.apply();
             calculate_bloomfilter_hash_table.apply();                           
         }
-        else if(hdr.udp.isValid()){
-            ig_intr_tm_md.bypass_egress = 1w1;
-        }
 
         if(ig_md.direction == 0b000) {
-            hdr.bridged.forward_to_dest = 1w1;
-            
+            hdr.bridged.forward_to_dest = 1w1; 
         }
         else if(ig_md.direction == 0b100) {
             hdr.bridged.cpu_flag = 1w1;
         }
-        else if(ig_md.direction == 0b001) {
+        else if(ig_md.direction == 0b001 && hdr.tcp.isValid()) {
             if(hdr.tcp.syn == 1w1) {
                 hdr.bridged.syn_respond = 1w1;
             }
@@ -411,7 +406,7 @@ control SwitchIngress(inout header_t hdr,
                 hdr.bridged.d_flag = 1w1;
             }
         }
-        else if(ig_md.direction == 0b010) {
+        else if(ig_md.direction == 0b010 && hdr.tcp.isValid()) {
             if(hdr.tcp.fin == 1w1 || hdr.tcp.rst == 1w1) {
                 hdr.bridged.lb_flag = 1w1;
             }
@@ -532,7 +527,6 @@ control SwitchEgress(inout header_t hdr,
     apply {
         if(hdr.tcp.isValid()) {
             if(eg_md.bridged.syn_respond == 1w1) {
-                //hdr.tcp_option.setInvalid();
                 hdr.mss.setValid();
                 hdr.nop_1.setValid();
                 hdr.nop_2.setValid();
