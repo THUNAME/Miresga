@@ -196,11 +196,13 @@ void RDMAEngine::sync_start() {
     }
     uint32_t imm_data = 0;
     if (changed_1) {
-        SPDLOG_LOGGER_DEBUG(logger, "Sending {} adding flow entries for Engine ID: {}", all_sge[0].length / sizeof(MiresgaOFTEntry_t), _id);
+        SPDLOG_LOGGER_DEBUG(logger, "Sending {} adding flow entries for Engine ID: {}", 
+                            all_sge[0].length / sizeof(MiresgaOFTEntry_t), _id);
         imm_data |= (all_sge[0].length / sizeof(MiresgaOFTEntry_t)) << 16;
     }
     if (changed_2) {
-        SPDLOG_LOGGER_DEBUG(logger, "Sending {} deleting flow entries for Engine ID: {}", all_sge[1].length / sizeof(MiresgaOFTKey_t), _id);
+        SPDLOG_LOGGER_DEBUG(logger, "Sending {} deleting flow entries for Engine ID: {}", 
+                            all_sge[1].length / sizeof(MiresgaOFTKey_t), _id);
         imm_data |= all_sge[1].length / sizeof(MiresgaOFTKey_t);
     }
     send_wr.opcode = IBV_WR_RDMA_WRITE_WITH_IMM;
