@@ -40,7 +40,8 @@ RDMAManager::RDMAManager(const char* dev_name, int epoll_fd)
     }
 
     SPDLOG_LOGGER_DEBUG(logger, "Querying local GID");
-    if (ibv_query_gid(_ctx, 0, 0, &_local_gid)) {
+    // Note: Here we assume using port 1. GID index 3 is for RoCE v2
+    if (ibv_query_gid(_ctx, 1, 3, &_local_gid)) {
         ibv_dealloc_pd(_pd);
         ibv_close_device(_ctx);
         SPDLOG_LOGGER_ERROR(logger, "Failed to get local GID");
