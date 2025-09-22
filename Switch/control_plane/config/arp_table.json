@@ -69,13 +69,40 @@
                 {
                     "match_type": "exact", 
                     "name": "hdr.arp.opcode", 
-                    "value": 2
+                    "value": 1
                 }, 
                 {
                     "match_type": "exact", 
                     "name": "hdr.arp.target_proto_addr", 
                     "value": {
                         "raw": "10.0.1.1", 
+                        "type": "ipv4"
+                    }
+                }
+            ], 
+            "datas": [
+                {
+                    "name": "arp_mac", 
+                    "value": {
+                        "raw": "00:02:00:00:03:00", 
+                        "type": "mac"
+                    }
+                }
+            ], 
+            "action_name": "SwitchIngress.reply_arp"
+        }, 
+        {
+            "keys": [
+                {
+                    "match_type": "exact", 
+                    "name": "hdr.arp.opcode", 
+                    "value": 1
+                }, 
+                {
+                    "match_type": "exact", 
+                    "name": "hdr.arp.target_proto_addr", 
+                    "value": {
+                        "raw": "10.0.1.254", 
                         "type": "ipv4"
                     }
                 }

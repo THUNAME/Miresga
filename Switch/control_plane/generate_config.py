@@ -36,12 +36,22 @@ arp_table_config["initial_entries"] = [
     },
     {
         "keys": [
-            {"name": "hdr.arp.opcode", "value": 2, "match_type": "exact"},
+            {"name": "hdr.arp.opcode", "value": 1, "match_type": "exact"},
             {"name": "hdr.arp.target_proto_addr", "value": {"raw": config["frontend_gateway"], "type": "ipv4"}, "match_type": "exact"}
         ],
         "action_name": ingress_prefix + "reply_arp",
         "datas": [
             {"name": "arp_mac", "value": {"raw": config["frontend_gateway_mac"], "type": "mac"}}
+        ]
+    },
+    {
+        "keys": [
+            {"name": "hdr.arp.opcode", "value": 1, "match_type": "exact"},
+            {"name": "hdr.arp.target_proto_addr", "value": {"raw": config["controller_ip"], "type": "ipv4"}, "match_type": "exact"}
+        ],
+        "action_name": ingress_prefix + "reply_arp",
+        "datas": [
+            {"name": "arp_mac", "value": {"raw": config["controller_mac"], "type": "mac"}}
         ]
     }
 ]

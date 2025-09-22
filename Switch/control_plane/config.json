@@ -1,4 +1,6 @@
 {
+    "controller_ip": "10.0.1.254",
+    "controller_mac": "00:02:00:00:03:00",
     "client_gateway": "10.0.0.1",
     "client_gateway_mac": "00:02:00:00:03:00",
     "client_servers_info": [
