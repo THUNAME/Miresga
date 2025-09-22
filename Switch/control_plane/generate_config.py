@@ -7,12 +7,18 @@ with open("config.json", "r") as f:
     config = json.load(f)
 
 arp_table_config = {}
+arp_forward_table_config = {}
 arp_table_config["table_name"] = ingress_prefix + "arp_table"
+arp_forward_table_config["table_name"] = ingress_prefix + "arp_forward_table"
 arp_table_config["key_names"] = [
     {"name": "hdr.arp.opcode", "match_type": "exact"},
     {"name": "hdr.arp.target_proto_addr", "match_type": "exact"}
 ]
+arp_forward_table_config["key_names"] = [
+    {"name": "hdr.arp.target_proto_addr", "match_type": "exact"}
+]
 arp_table_config["actions"] = [{"action_name": ingress_prefix + "reply_arp", "data_names": ["arp_mac"]}]
+arp_forward_table_config["actions"] = [{"action_name": ingress_prefix + "forward_arp", "data_names": ["dst_port"]}]
 arp_table_config["initial_entries"] = [
     {
         "keys": [
@@ -43,21 +49,20 @@ arp_table_config["initial_entries"] = [
         "datas": [
             {"name": "arp_mac", "value": {"raw": config["frontend_gateway_mac"], "type": "mac"}}
         ]
-    },
-    {
-        "keys": [
-            {"name": "hdr.arp.opcode", "value": 1, "match_type": "exact"},
-            {"name": "hdr.arp.target_proto_addr", "value": {"raw": config["controller_ip"], "type": "ipv4"}, "match_type": "exact"}
-        ],
-        "action_name": ingress_prefix + "reply_arp",
-        "datas": [
-            {"name": "arp_mac", "value": {"raw": config["controller_mac"], "type": "mac"}}
-        ]
     }
 ]
 
-with open("config/arp_table.json", "w") as f:
-    json.dump(arp_table_config, f, indent=4)
+arp_forward_table_config["initial_entries"] = [
+    {
+        "keys": [
+            {"name": "hdr.arp.target_proto_addr", "value":{"raw": config["controller_ip"], "type": "ipv4"}, "match_type": "exact"}
+        ],
+        "action_name": ingress_prefix + "forward_arp",
+        "datas": [
+            {"name": "dst_port", "value": 192}
+        ]
+    }
+]
 
 offload_connection_table_config = {}
 offload_connection_table_config["table_name"] = ingress_prefix + "offload_connection_table"
@@ -203,7 +208,22 @@ for i in range(len(config["frontend_servers_info"])):
             ]
         }
     )
-    
+    arp_forward_table_config["initial_entries"].append(
+        {
+            "keys": [
+                {"name": "hdr.arp.target_proto_addr", "value": {"raw": frontend_ip, "type": "ipv4"}, "match_type": "exact"}
+            ],
+            "action_name": ingress_prefix + "forward_arp",
+            "datas": [
+                {"name": "dst_port", "value": frontend_egress_port}
+            ]
+        }
+    )
+
+with open("config/arp_table.json", "w") as f:
+    json.dump(arp_table_config, f, indent=4)
+with open("config/arp_forward_table.json", "w") as f:
+    json.dump(arp_forward_table_config, f, indent=4)
 with open("config/dip_lookup_table.json", "w") as f:
     json.dump(dip_lookup_table_config, f, indent=4)
 with open("config/dest_to_egress_port_table.json", "w") as f:

@@ -120,14 +120,14 @@ control SwitchIngress(inout header_t hdr,
     }
 
     action reply_arp(mac_addr_t arp_mac) {
+        bit<32> tmp_addr = hdr.arp.sender_proto_addr;
         hdr.ethernet.dst_addr = hdr.ethernet.src_addr;
+        hdr.arp.target_hw_addr = hdr.ethernet.src_addr;
         hdr.ethernet.src_addr = arp_mac;
-        hdr.arp.opcode = 2;
         hdr.arp.sender_hw_addr = arp_mac;
         hdr.arp.sender_proto_addr = hdr.arp.target_proto_addr;
-        hdr.arp.target_hw_addr = hdr.ethernet.src_addr;
-        hdr.arp.target_proto_addr = hdr.arp.sender_proto_addr;
-        ig_intr_tm_md.ucast_egress_port = ig_intr_md.ingress_port;
+        hdr.arp.target_proto_addr = tmp_addr;
+        hdr.arp.opcode = 2;
     }
 
     table arp_table{
@@ -137,7 +137,23 @@ control SwitchIngress(inout header_t hdr,
         }
         actions = {
             reply_arp;
+            nop;
+        }
+        const default_action = nop;
+        size = 1024;
+    }
+
+    action forward_arp(PortId_t dst_port) {
+        ig_intr_tm_md.ucast_egress_port = dst_port;
+    }
+
+    table arp_forward_table{
+        key = {
+            hdr.arp.target_proto_addr: exact;
+        }
+        actions = {
             drop;
+            forward_arp;
         }
         const default_action = drop;
         size = 1024;
@@ -371,6 +387,7 @@ control SwitchIngress(inout header_t hdr,
         get_new_tb_idx_table.apply();
         if(hdr.arp.isValid()) {
             arp_table.apply();
+            arp_forward_table.apply();
         }
         else if(hdr.tcp.isValid()) {
             calculate_payload_table.apply();
@@ -381,7 +398,7 @@ control SwitchIngress(inout header_t hdr,
             calculate_bloomfilter_hash_table.apply();                           
         }
 
-        if(ig_md.direction == 0b000) {
+        if(ig_md.direction == 0b000 && !hdr.arp.isValid()) {
             hdr.bridged.forward_to_dest = 1w1; 
         }
         else if(ig_md.direction == 0b100) {
@@ -448,8 +465,9 @@ control SwitchIngress(inout header_t hdr,
             ig_intr_tm_md.ucast_egress_port = 192;
         }
         else if(hdr.bridged.syn_respond == 1w1) {
+            bit<48> tmp_addr = hdr.ethernet.dst_addr;
             hdr.ethernet.dst_addr = hdr.ethernet.src_addr;
-            hdr.ethernet.src_addr = 0xabababcdcdcd;
+            hdr.ethernet.src_addr = tmp_addr;
             ig_intr_tm_md.ucast_egress_port = ig_intr_md.ingress_port;
         }
         else if(hdr.bridged.forward_to_dest == 1w1) {

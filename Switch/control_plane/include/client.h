@@ -51,6 +51,7 @@ private:
     inline static SwitchClient_t* _instance = nullptr;
     SwitchInfo_t* _switch_info;
     TableInfo_t* _arp_table;
+    TableInfo_t* _arp_forward_table;
     TableInfo_t* _dip_lookup_table;
     TableInfo_t* _offload_connection_table;
     TableInfo_t* _dest_to_egress_port_table;

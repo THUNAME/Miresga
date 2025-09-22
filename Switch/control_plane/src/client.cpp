@@ -165,6 +165,7 @@ SwitchClient_t::SwitchClient_t(std::string config_dir) {
     _switch_info = SwitchInfo_t::get_instance();
     _init_ports_from_config(config_dir + "ports.json");
     _arp_table = _init_table_from_config(config_dir + "arp_table.json");
+    _arp_forward_table = _init_table_from_config(config_dir + "arp_forward_table.json");
     _dip_lookup_table = _init_table_from_config(config_dir + "dip_lookup_table.json");
     _dest_to_egress_port_table = _init_table_from_config(config_dir + "dest_to_egress_port_table.json");
     _d_index_to_egress_port_table = _init_table_from_config(config_dir + "d_index_to_egress_port_table.json");

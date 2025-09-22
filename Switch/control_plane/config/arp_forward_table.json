@@ -1,0 +1,95 @@
+{
+    "key_names": [
+        {
+            "match_type": "exact", 
+            "name": "hdr.arp.target_proto_addr"
+        }
+    ], 
+    "initial_entries": [
+        {
+            "keys": [
+                {
+                    "match_type": "exact", 
+                    "name": "hdr.arp.target_proto_addr", 
+                    "value": {
+                        "raw": "10.0.1.254", 
+                        "type": "ipv4"
+                    }
+                }
+            ], 
+            "datas": [
+                {
+                    "name": "dst_port", 
+                    "value": 192
+                }
+            ], 
+            "action_name": "SwitchIngress.forward_arp"
+        }, 
+        {
+            "keys": [
+                {
+                    "match_type": "exact", 
+                    "name": "hdr.arp.target_proto_addr", 
+                    "value": {
+                        "raw": "10.0.1.2", 
+                        "type": "ipv4"
+                    }
+                }
+            ], 
+            "datas": [
+                {
+                    "name": "dst_port", 
+                    "value": 24
+                }
+            ], 
+            "action_name": "SwitchIngress.forward_arp"
+        }, 
+        {
+            "keys": [
+                {
+                    "match_type": "exact", 
+                    "name": "hdr.arp.target_proto_addr", 
+                    "value": {
+                        "raw": "10.0.1.3", 
+                        "type": "ipv4"
+                    }
+                }
+            ], 
+            "datas": [
+                {
+                    "name": "dst_port", 
+                    "value": 0
+                }
+            ], 
+            "action_name": "SwitchIngress.forward_arp"
+        }, 
+        {
+            "keys": [
+                {
+                    "match_type": "exact", 
+                    "name": "hdr.arp.target_proto_addr", 
+                    "value": {
+                        "raw": "10.0.1.4", 
+                        "type": "ipv4"
+                    }
+                }
+            ], 
+            "datas": [
+                {
+                    "name": "dst_port", 
+                    "value": 16
+                }
+            ], 
+            "action_name": "SwitchIngress.forward_arp"
+        }
+    ], 
+    "table_name": "SwitchIngress.arp_forward_table", 
+    "actions": [
+        {
+            "data_names": [
+                "dst_port"
+            ], 
+            "action_name": "SwitchIngress.forward_arp"
+        }
+    ]
+}
