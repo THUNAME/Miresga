@@ -21,20 +21,20 @@
                 {
                     "name": "src_mac", 
                     "value": {
-                        "raw": "00:06:00:00:03:00", 
+                        "raw": "00:02:00:00:03:00", 
                         "type": "mac"
                     }
                 }, 
                 {
                     "name": "dst_mac", 
                     "value": {
-                        "raw": "00:06:00:00:03:01", 
+                        "raw": "0c:42:a1:d1:d0:c8", 
                         "type": "mac"
                     }
                 }, 
                 {
                     "name": "dst_port", 
-                    "value": 1
+                    "value": 52
                 }
             ], 
             "action_name": "SwitchIngress.set_egress_port"
@@ -54,20 +54,20 @@
                 {
                     "name": "src_mac", 
                     "value": {
-                        "raw": "00:06:00:00:03:00", 
+                        "raw": "00:02:00:00:03:00", 
                         "type": "mac"
                     }
                 }, 
                 {
                     "name": "dst_mac", 
                     "value": {
-                        "raw": "00:06:00:00:03:02", 
+                        "raw": "38:25:f3:f3:78:ea", 
                         "type": "mac"
                     }
                 }, 
                 {
                     "name": "dst_port", 
-                    "value": 1
+                    "value": 8
                 }
             ], 
             "action_name": "SwitchIngress.set_egress_port"
@@ -94,13 +94,13 @@
                 {
                     "name": "dst_mac", 
                     "value": {
-                        "raw": "00:02:00:00:03:01", 
+                        "raw": "b4:96:91:db:d6:78", 
                         "type": "mac"
                     }
                 }, 
                 {
                     "name": "dst_port", 
-                    "value": 1
+                    "value": 56
                 }
             ], 
             "action_name": "SwitchIngress.set_egress_port"
@@ -127,13 +127,13 @@
                 {
                     "name": "dst_mac", 
                     "value": {
-                        "raw": "00:02:00:00:03:02", 
+                        "raw": "b4:96:91:b1:d7:38", 
                         "type": "mac"
                     }
                 }, 
                 {
                     "name": "dst_port", 
-                    "value": 2
+                    "value": 16
                 }
             ], 
             "action_name": "SwitchIngress.set_egress_port"
@@ -153,20 +153,20 @@
                 {
                     "name": "src_mac", 
                     "value": {
-                        "raw": "00:04:00:00:00:01", 
+                        "raw": "00:02:00:00:03:00", 
                         "type": "mac"
                     }
                 }, 
                 {
                     "name": "dst_mac", 
                     "value": {
-                        "raw": "00:04:00:00:00:02", 
+                        "raw": "82:84:2d:a4:e3:00", 
                         "type": "mac"
                     }
                 }, 
                 {
                     "name": "dst_port", 
-                    "value": 1
+                    "value": 24
                 }
             ], 
             "action_name": "SwitchIngress.set_egress_port"
@@ -186,20 +186,53 @@
                 {
                     "name": "src_mac", 
                     "value": {
-                        "raw": "00:04:00:00:00:01", 
+                        "raw": "00:02:00:00:03:00", 
                         "type": "mac"
                     }
                 }, 
                 {
                     "name": "dst_mac", 
                     "value": {
-                        "raw": "00:04:00:00:00:03", 
+                        "raw": "d2:d2:09:e1:e9:8b", 
                         "type": "mac"
                     }
                 }, 
                 {
                     "name": "dst_port", 
-                    "value": 2
+                    "value": 0
+                }
+            ], 
+            "action_name": "SwitchIngress.set_egress_port"
+        }, 
+        {
+            "keys": [
+                {
+                    "match_type": "exact", 
+                    "name": "hdr.ipv4.dst_addr", 
+                    "value": {
+                        "raw": "10.0.1.4", 
+                        "type": "ipv4"
+                    }
+                }
+            ], 
+            "datas": [
+                {
+                    "name": "src_mac", 
+                    "value": {
+                        "raw": "00:02:00:00:03:00", 
+                        "type": "mac"
+                    }
+                }, 
+                {
+                    "name": "dst_mac", 
+                    "value": {
+                        "raw": "0c:42:a1:98:aa:31", 
+                        "type": "mac"
+                    }
+                }, 
+                {
+                    "name": "dst_port", 
+                    "value": 16
                 }
             ], 
             "action_name": "SwitchIngress.set_egress_port"

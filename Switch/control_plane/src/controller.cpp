@@ -598,8 +598,8 @@ FrontendController_t::FrontendController_t(std::string config_path) {
     auto frontend_servers_info = config_json["frontend_servers_info"];
     assert(frontend_servers_info.is_array());
     for (const auto& server_info : frontend_servers_info) {
-        std::string ip = server_info["ip"];
-        std::string dst_mac_str = server_info["mac"];
+        std::string ip = server_info["client_ip"];
+        std::string dst_mac_str = server_info["frontend_mac"];
         uint64_t dst_mac = 0;
         std::stringstream dst_ss(dst_mac_str);
         std::string dst_byte_str;

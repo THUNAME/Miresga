@@ -177,8 +177,8 @@ for i in range(len(config["client_servers_info"])):
     )
 
 for i in range(len(config["frontend_servers_info"])):
-    frontend_ip = config["frontend_servers_info"][i]["ip"]
-    frontend_mac = config["frontend_servers_info"][i]["mac"]
+    frontend_ip = config["frontend_servers_info"][i]["client_ip"]
+    frontend_mac = config["frontend_servers_info"][i]["client_mac"]
     frontend_egress_port = config["frontend_servers_info"][i]["egress_port"]
     dest_to_egress_port_table_config["initial_entries"].append(
         {
@@ -193,6 +193,7 @@ for i in range(len(config["frontend_servers_info"])):
             ]
         }
     )
+    
 with open("config/dip_lookup_table.json", "w") as f:
     json.dump(dip_lookup_table_config, f, indent=4)
 with open("config/dest_to_egress_port_table.json", "w") as f:
