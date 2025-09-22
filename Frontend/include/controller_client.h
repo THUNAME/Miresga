@@ -35,7 +35,7 @@ private:
     int _epoll_fd;
     int _offload_timerfd;
     int _sync_timerfd;
-    void _update_info();
+    bool _update_info();
     void _main_loop();
     ControllerClient() = delete;
     ControllerClient(ControllerClient const&) = delete;

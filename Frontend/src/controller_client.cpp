@@ -2,10 +2,13 @@
 
 static auto logger = spdlog::stdout_color_mt("controller_client");
 
-void ControllerClient::_update_info() 
+bool ControllerClient::_update_info() 
 {
     size_t recv_size = 0;
     if (_connector->recv_message(_recv_buffer, ETH_FRAME_LEN, recv_size) != MiresgaStatus_t::OK) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            return true;
+        }
         SPDLOG_LOGGER_ERROR(logger, "Failed to receive message from Tofino");
         throw std::runtime_error("Failed to receive message");
     }
@@ -168,7 +171,10 @@ void ControllerClient::_update_info()
         default:
             throw std::runtime_error("Unknown operation type");
     }
-
+    std::string complete_msg = "";
+    complete_msg.append(1, static_cast<char>(OperationType_t::COMPLETE));
+    _connector->send_message(complete_msg.data(), complete_msg.size());
+    return false;
 }
 
 void ControllerClient::_main_loop()
@@ -179,10 +185,13 @@ void ControllerClient::_main_loop()
         int nfds = epoll_wait(_epoll_fd, events, 10, -1);
         for (int i = 0; i < nfds; ++i) {
             if (events[i].data.fd == _connector->socket) {
-                _update_info();
+                while(!_update_info()) {
+                    SPDLOG_LOGGER_DEBUG(logger, "Processed one message from Tofino");
+                }
             }
             else if(events[i].data.fd == _offload_timerfd) {
-                SPDLOG_LOGGER_DEBUG(logger, "Offload timer triggered");
+                // Since too many logs will be generated, comment it out here.
+                // SPDLOG_LOGGER_DEBUG(logger, "Offload timer triggered");
                 uint64_t expirations;
                 ssize_t recv_size = read(_offload_timerfd, &expirations, sizeof(expirations));
                 if (recv_size == -1) {
@@ -199,7 +208,8 @@ void ControllerClient::_main_loop()
                 }
             }
             else if(events[i].data.fd == _sync_timerfd) {
-                SPDLOG_LOGGER_DEBUG(logger, "Sync timer triggered");
+                // Since too many logs will be generated, comment it out here.
+                // SPDLOG_LOGGER_DEBUG(logger, "Sync timer triggered");
                 uint64_t expirations;
                 ssize_t recv_size = read(_sync_timerfd, &expirations, sizeof(expirations));
                 if (recv_size == -1) {
