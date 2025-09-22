@@ -6,6 +6,7 @@ std::string FrontendController_t::_serializing_rule_table() {
     std::string msg;
     msg.append(1, static_cast<char>(OperationType_t::UPDATE_RULE));
     msg.append(1, static_cast<char>(_rule_table.size()));
+    msg.append(1, static_cast<char>(0));
     for (const auto& [key, rule_entry] : _rule_table) {
         msg.append(key);
         msg.append(1, '\0');
