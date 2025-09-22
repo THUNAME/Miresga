@@ -339,7 +339,7 @@ void FrontendController_t::_main_loop() {
                 std::string ip = inet_ntoa(client_addr.sin_addr);
                 SPDLOG_LOGGER_DEBUG(logger, "New connection accepted from {}: {}", ip, ntohs(client_addr.sin_port));
                 struct epoll_event ev;
-                ev.events = EPOLLIN | EPOLLET;
+                ev.events = EPOLLIN;
                 ev.data.fd = conn_fd;
                 if (epoll_ctl(_epoll_fd, EPOLL_CTL_ADD, conn_fd, &ev) < 0) {
                     SPDLOG_LOGGER_ERROR(logger, "Failed to add connection to epoll");
@@ -357,19 +357,7 @@ void FrontendController_t::_main_loop() {
                     SPDLOG_LOGGER_ERROR(logger, "Failed to send rule table");
                     throw std::runtime_error("Failed to send rule table");
                 }
-                SPDLOG_LOGGER_DEBUG(logger, "Sending d_index table to {}: {}", id, ip);
-                std::string d_index_msg = _serializing_d_index_table();
-                if (send(conn_fd, d_index_msg.c_str(), d_index_msg.size(), 0) < 0) {
-                    SPDLOG_LOGGER_ERROR(logger, "Failed to send d_index table");
-                    throw std::runtime_error("Failed to send d_index table");
-                }
-                SPDLOG_LOGGER_DEBUG(logger, "Sending virtual server info to {}: {}", id, ip);
-                std::string v_info_msg = _serializing_v_info();
-                if (send(conn_fd, v_info_msg.c_str(), v_info_msg.size(), 0) < 0) {
-                    SPDLOG_LOGGER_ERROR(logger, "Failed to send virtual server info");
-                    throw std::runtime_error("Failed to send virtual server info");
-                }
-                _add_frontend(id);
+                _state = WAIT_INIT_DINDEX;
             } else if(events[n].data.u32 == TIMER_PRESENTOR) {
                 uint64_t expirations;
                 SPDLOG_LOGGER_DEBUG(logger, "Reading timerfd");
@@ -524,6 +512,23 @@ void FrontendController_t::_main_loop() {
 
                                 }
                             }
+                            else if(_state == WAIT_INIT_DINDEX) {
+                                SPDLOG_LOGGER_DEBUG(logger, "Sending d_index table to {}", id);
+                                std::string d_index_msg = _serializing_d_index_table();
+                                if (send(conn_fd, d_index_msg.c_str(), d_index_msg.size(), 0) < 0) {
+                                    SPDLOG_LOGGER_ERROR(logger, "Failed to send d_index table");
+                                    throw std::runtime_error("Failed to send d_index table");
+                                }
+                                _state = WAIT_INIT_VINFO;
+                            } else if(_state == WAIT_INIT_VINFO) {
+                                SPDLOG_LOGGER_DEBUG(logger, "Sending virtual server info to {}", id);
+                                std::string v_info_msg = _serializing_v_info();
+                                if (send(conn_fd, v_info_msg.c_str(), v_info_msg.size(), 0) < 0) {
+                                    SPDLOG_LOGGER_ERROR(logger, "Failed to send virtual server info");
+                                    throw std::runtime_error("Failed to send virtual server info");
+                                }
+                                _add_frontend(id);
+                            }
                             break;
                         }
                     }
@@ -531,6 +536,7 @@ void FrontendController_t::_main_loop() {
             }
         }
     }
+    SPDLOG_LOGGER_DEBUG(logger, "Exit main loop");
 }
 
 void FrontendController_t::start() {

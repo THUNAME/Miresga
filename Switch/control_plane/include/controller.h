@@ -30,6 +30,8 @@
 enum ControllerState_t {
     INIT,
     NORMAL,
+    WAIT_INIT_DINDEX,
+    WAIT_INIT_VINFO,
     WAIT_RDMA_INFO,
     WAIT_RDMA_INIT,
     WAIT_SYNC
