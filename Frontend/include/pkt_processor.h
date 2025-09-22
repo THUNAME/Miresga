@@ -21,8 +21,8 @@ private:
     int _queue_id;
     int _socket_id;
     std::thread _processor_thread;
-    moodycamel::ProducerToken& _add_token;
-    moodycamel::ProducerToken& _del_token;
+    moodycamel::ProducerToken* _add_token;
+    moodycamel::ProducerToken* _del_token;
     DPDKManager* _dpdk_manager;
     RuleManager* _rule_manager;
     RDMAManager* _rdma_manager;

@@ -104,12 +104,12 @@ ssize_t EntryManager::serialize_msg(char* send_buffer)
     return total_bytes;
 }
 
-moodycamel::ProducerToken& EntryManager::get_add_queue_token() {
+moodycamel::ProducerToken* EntryManager::get_add_queue_token() {
     _producer_tokens.emplace_back(moodycamel::ProducerToken(_add_queue));
-    return _producer_tokens.back();
+    return &_producer_tokens.back();
 }
 
-moodycamel::ProducerToken& EntryManager::get_del_queue_token() {
+moodycamel::ProducerToken* EntryManager::get_del_queue_token() {
     _key_producer_tokens.emplace_back(moodycamel::ProducerToken(_del_queue));
-    return _key_producer_tokens.back();
+    return &_key_producer_tokens.back();
 }

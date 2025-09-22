@@ -42,11 +42,11 @@ PktProcessor::PktProcessor(int queue_id, int socket_id)
       _rule_manager(RuleManager::get_instance()),
       _rdma_manager(RDMAManager::get_instance()),
       _entry_manager(EntryManager::get_instance()),
-      _flow_table(FlowTable::get_instance()),
-      _add_token(_entry_manager->get_add_queue_token()),
-      _del_token(_entry_manager->get_del_queue_token())
+      _flow_table(FlowTable::get_instance())
 {
     SPDLOG_LOGGER_INFO(logger, "PktProcessor created on queue {} and socket {}", queue_id, socket_id);
+    _add_token = _entry_manager->get_add_queue_token();
+    _del_token = _entry_manager->get_del_queue_token();
 }
 
 PktProcessor::~PktProcessor() {
@@ -305,7 +305,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                 if (flow_data->state == FlowState_t::OFFLOAD) {
                     // Remove the entry from the offload table.
                     SPDLOG_LOGGER_DEBUG(logger, "Removing entry from offload table");
-                    _entry_manager->del_entry(_del_token, src_oft_key);
+                    _entry_manager->del_entry(*_del_token, src_oft_key);
                 }
                 if (flow_data->state >= FlowState_t::BACKEND_SYN) {
                     // Release the backend server.
@@ -325,7 +325,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                 if (flow_data->state == FlowState_t::OFFLOAD) {
                     // Remove the entry from the offload table.
                     SPDLOG_LOGGER_DEBUG(logger, "Removing entry from offload table");
-                    _entry_manager->del_entry(_del_token, src_oft_key);
+                    _entry_manager->del_entry(*_del_token, src_oft_key);
                 }
                 if (flow_data->state >= FlowState_t::BACKEND_SYN) {
                     // Release the backend server.
@@ -363,7 +363,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                                 if (flow_data->state == FlowState_t::OFFLOAD) {
                                     // Remove the entry from the offload table.
                                     SPDLOG_LOGGER_DEBUG(logger, "Removing old entry from offload table");
-                                    _entry_manager->del_entry(_del_token, src_oft_key);
+                                    _entry_manager->del_entry(*_del_token, src_oft_key);
                                 }
                                 // Send SYN to the new backend server.
                                 _get_inbound_syn_pkt(recv_mbufs[i], rule->d_index, send_mbufs[num_send_pkts]);
@@ -386,12 +386,12 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                                 num_send_pkts++;
                                 if (flow_data->state == FlowState_t::OFFLOAD && rule->offload_flag == 0) {
                                     flow_data->entry_data.data.flow_state = static_cast<uint8_t>(FlowState_t::ESTABLISHED);
-                                    _entry_manager->del_entry(_del_token, src_oft_key);
+                                    _entry_manager->del_entry(*_del_token, src_oft_key);
                                     flow_data->state = FlowState_t::ESTABLISHED;
                                 }
                                 else if (flow_data->state == FlowState_t::ESTABLISHED && rule->offload_flag == 1) {
                                     flow_data->entry_data.data.flow_state = static_cast<uint8_t>(FlowState_t::OFFLOAD);
-                                    _entry_manager->add_entry(_add_token, flow_data->entry_data);
+                                    _entry_manager->add_entry(*_add_token, flow_data->entry_data);
                                     flow_data->state = FlowState_t::OFFLOAD;
                                 }
                             }
@@ -438,7 +438,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                 if (flow_data->state == FlowState_t::OFFLOAD) {
                     // Remove the entry from the offload table.
                     SPDLOG_LOGGER_DEBUG(logger, "Removing entry from offload table");
-                    _entry_manager->del_entry(_del_token, src_oft_key);
+                    _entry_manager->del_entry(*_del_token, src_oft_key);
                 }
                 if (flow_data->state >= FlowState_t::ESTABLISHED)
                     _rdma_manager->del_flow_data(&src_oft_key);
@@ -460,7 +460,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                 if (flow_data->state == FlowState_t::OFFLOAD) {
                     SPDLOG_LOGGER_DEBUG(logger, "Removing entry from offload table");
                     // Remove the entry from the offload table.
-                    _entry_manager->del_entry(_del_token, src_oft_key);
+                    _entry_manager->del_entry(*_del_token, src_oft_key);
                 }
                 if (flow_data->state >= FlowState_t::ESTABLISHED)
                     _rdma_manager->del_flow_data(&src_oft_key);
@@ -478,7 +478,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                         }
                         if (flow_data->entry_data.data.flow_state == static_cast<uint8_t>(FlowState_t::OFFLOAD)) {
                             SPDLOG_LOGGER_DEBUG(logger, "Adding entry to offload table");
-                            _entry_manager->add_entry(_add_token, flow_data->entry_data);
+                            _entry_manager->add_entry(*_add_token, flow_data->entry_data);
                             flow_data->state = FlowState_t::OFFLOAD;
                         }
                         else {

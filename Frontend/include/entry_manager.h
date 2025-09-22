@@ -36,8 +36,8 @@ public:
     static void destroy_instance();
     void add_entry(moodycamel::ProducerToken& token, MiresgaOFTEntry_t entry);
     void del_entry(moodycamel::ProducerToken& token, MiresgaOFTKey_t key);
-    moodycamel::ProducerToken& get_add_queue_token();
-    moodycamel::ProducerToken& get_del_queue_token();
+    moodycamel::ProducerToken* get_add_queue_token();
+    moodycamel::ProducerToken* get_del_queue_token();
     ssize_t serialize_msg(char* send_buffer);
 };
 
