@@ -20,6 +20,7 @@ std::string FrontendController_t::_serializing_d_index_table() {
     std::string msg;
     msg.append(1, static_cast<char>(OperationType_t::UPDATE_D_INDEX));
     msg.append(1, static_cast<char>(_d_index_2_backend_server_info.size()));
+    msg.append(1, static_cast<char>(0));
     for (const auto& [d_index, server_info] : _d_index_2_backend_server_info) {
         msg.append(1, static_cast<char>(d_index));
         msg.append(reinterpret_cast<const char*>(&server_info), sizeof(ServerInfo_t));
