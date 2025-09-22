@@ -9,6 +9,7 @@
 
 #include <memory>
 #include <string>
+#include <arpa/inet.h>
 #include <unordered_map>
 
 struct RuleEntry_t {

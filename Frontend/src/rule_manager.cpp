@@ -168,11 +168,15 @@ MiresgaStatus_t RuleManager::set_virtual_server_info(ServerInfo_t* server_info) 
         return INVALID_PARAMETER;
     }
     memcpy(_virtual_server_info, server_info, sizeof(ServerInfo_t));
+    #ifdef DEBUG
+    char ip_str[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &(_virtual_server_info->ip), ip_str, INET_ADDRSTRLEN);
     SPDLOG_LOGGER_DEBUG(logger, "Set virtual server info - MAC: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, IP: {}, Port: {}",
                         _virtual_server_info->mac.addr_bytes[0], _virtual_server_info->mac.addr_bytes[1],
                         _virtual_server_info->mac.addr_bytes[2], _virtual_server_info->mac.addr_bytes[3],
                         _virtual_server_info->mac.addr_bytes[4], _virtual_server_info->mac.addr_bytes[5],
-                        _virtual_server_info->ip, _virtual_server_info->port);
+                        ip_str, ntohs(_virtual_server_info->port));
+    #endif
     return OK;
 }
 

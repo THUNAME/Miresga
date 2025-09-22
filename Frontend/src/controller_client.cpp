@@ -146,7 +146,6 @@ bool ControllerClient::_update_info()
             SPDLOG_LOGGER_INFO(logger, "Receive UPDATE_V_INFO from Tofino");
             ServerInfo_t *server_info = reinterpret_cast<ServerInfo_t*>(_recv_buffer + 1);
             _rule_manager->set_virtual_server_info(server_info);
-
             break;
         }
         case SYNC_OLD_DATA: {
