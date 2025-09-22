@@ -13,7 +13,8 @@ DPDKManager::DPDKManager(int argc, char **argv, DPDKConfig_t* dpdk_config) {
     SPDLOG_LOGGER_DEBUG(logger, "Creating mbuf pool");
     mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", dpdk_config->num_mbufs,
                                         dpdk_config->mbuf_cache_size, 0,
-                                        dpdk_config->mbuf_data_room_size, rte_socket_id());
+                                        dpdk_config->mbuf_data_room_size, 
+                                        rte_socket_id());
     if (mbuf_pool == nullptr) {
         SPDLOG_LOGGER_ERROR(logger, "Failed to create mbuf pool");
         throw std::runtime_error("Failed to create mbuf pool");
@@ -38,9 +39,9 @@ DPDKManager::DPDKManager(int argc, char **argv, DPDKConfig_t* dpdk_config) {
     port_conf.txmode.offloads = RTE_ETH_TX_OFFLOAD_IPV4_CKSUM | RTE_ETH_TX_OFFLOAD_TCP_CKSUM;
     port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
     port_conf.rx_adv_conf.rss_conf.rss_hf = RTE_ETH_RSS_IP | RTE_ETH_RSS_TCP;
-
     SPDLOG_LOGGER_DEBUG(logger, "Configuring Ethernet device");
-    ret = rte_eth_dev_configure(port_id, 1, 1, &port_conf);
+    ret = rte_eth_dev_configure(port_id, dpdk_config->queue_size, 
+                                dpdk_config->queue_size, &port_conf);
     if (ret < 0) {
         SPDLOG_LOGGER_ERROR(logger, "Failed to configure Ethernet device");
         throw std::runtime_error("Failed to configure Ethernet device");

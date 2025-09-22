@@ -233,11 +233,12 @@ void ControllerClient::_main_loop()
                         if (add_entry > 0) {
                            for (uint16_t i = 0; i < add_entry; ++i) {
                                 MiresgaOFTEntry_t* entry = reinterpret_cast<MiresgaOFTEntry_t*>(
-                                    reinterpret_cast<uint8_t*>(recv_buffer) + offset);
+                                                               reinterpret_cast<uint8_t*>(recv_buffer) + offset
+                                                         );
                                 offset += sizeof(MiresgaOFTEntry_t);
                                 MiresgaFlowData_t* data = new MiresgaFlowData_t();
                                 data->entry_data = *entry;
-                                data->state = static_cast<FlowState_t>((entry->data.flow_state) ? FlowState_t::OFFLOAD : FlowState_t::ESTABLISHED);
+                                data->state = static_cast<FlowState_t>(entry->data.flow_state);
                                 _flow_table->remove_flow(data->entry_data.key);
                                 _flow_table->insert_flow(data->entry_data.key, data);
                             }
@@ -256,7 +257,8 @@ void ControllerClient::_main_loop()
                         _rdma_manager->sync_complete(remote_id);
                     }
                     else {
-                        SPDLOG_LOGGER_WARN(logger, "Unknown completion opcode {} for engine {}", static_cast<int>(wc.opcode), remote_id);
+                        SPDLOG_LOGGER_WARN(logger, "Unknown completion opcode {} for engine {}", 
+                                           static_cast<int>(wc.opcode), remote_id);
                     }
                 }
             }
