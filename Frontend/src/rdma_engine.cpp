@@ -86,6 +86,7 @@ RDMAEngine::RDMAEngine(uint8_t id, ibv_pd* pd, ibv_cq* cq, ibv_gid& gid)
     _recv_buffer = new RDMABuffer_t(RDMA_RECV_BUFFER_SIZE, pd);
     _local_rdma_info->addr = reinterpret_cast<uint64_t>(_recv_buffer->mr->addr);
     _local_rdma_info->rkey = _recv_buffer->mr->rkey;
+    memcpy(&_local_rdma_info->gid, &gid, sizeof(ibv_gid));
     SPDLOG_LOGGER_DEBUG(logger, "Local RDMA Info for Engine ID {}: RECV ADDR: 0x{:x}, RECV RKEY: 0x{:x}", _id, _local_rdma_info->addr, _local_rdma_info->rkey);
     _create_qp(pd, cq);
     _change_qp_to_init();

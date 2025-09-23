@@ -48,6 +48,12 @@ RDMAManager::RDMAManager(const char* dev_name, int epoll_fd)
         throw std::runtime_error("Failed to get local GID");
     }
 
+    SPDLOG_LOGGER_DEBUG(logger, "Local GID: {:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}",
+                        _local_gid.raw[0], _local_gid.raw[1], _local_gid.raw[2], _local_gid.raw[3],
+                        _local_gid.raw[4], _local_gid.raw[5], _local_gid.raw[6], _local_gid.raw[7],
+                        _local_gid.raw[8], _local_gid.raw[9], _local_gid.raw[10], _local_gid.raw[11],
+                        _local_gid.raw[12], _local_gid.raw[13], _local_gid.raw[14], _local_gid.raw[15]);
+
     SPDLOG_LOGGER_DEBUG(logger, "Creating Completion Channel");
     _comp_channel = ibv_create_comp_channel(_ctx);
     if (!_comp_channel) {
@@ -133,11 +139,12 @@ std::string RDMAManager::add_engine(uint8_t id)
         throw std::runtime_error("Engine ID already exists");
     }
     std::string msg;
-    msg.resize(sizeof(RDMAInfo_t));
+    msg.resize(sizeof(RDMAInfo_t) + 1);
+    msg[0] = static_cast<char>(id);
     RDMAEngine* engine = new RDMAEngine(id, _pd, _cq, _local_gid);
     _id_2_engines[id] = std::make_pair(engine, false);
     RDMAInfo_t* local_info = engine->get_local_rdma_info();
-    SPDLOG_LOGGER_DEBUG(logger, "New RDMA Info - GID: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, QPN: 0x{:x}, ADDR: 0x{:x}, RKEY: 0x{:x}",
+    SPDLOG_LOGGER_DEBUG(logger, "New RDMA Info - GID: {:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}, QPN: 0x{:x}, ADDR: 0x{:x}, RKEY: 0x{:x}",
                         local_info->gid.raw[0], local_info->gid.raw[1], local_info->gid.raw[2], local_info->gid.raw[3],
                         local_info->gid.raw[4], local_info->gid.raw[5], local_info->gid.raw[6], local_info->gid.raw[7],
                         local_info->gid.raw[8], local_info->gid.raw[9], local_info->gid.raw[10], local_info->gid.raw[11],
@@ -145,14 +152,14 @@ std::string RDMAManager::add_engine(uint8_t id)
                         local_info->qpn,
                         local_info->addr,
                         local_info->rkey);
-    memcpy(msg.data(), local_info, sizeof(RDMAInfo_t));
+    memcpy(msg.data() + 1, local_info, sizeof(RDMAInfo_t));
     return msg;
 }
 
 void RDMAManager::update_engine(uint8_t id, RDMAInfo_t* remote_rdma_info, std::vector<uint8_t> crcs)
 {
     SPDLOG_LOGGER_DEBUG(logger, "Updating RDMA engine with ID: {}", id);
-    SPDLOG_LOGGER_DEBUG(logger, "Remote RDMA Info - GID: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, QPN: 0x{:x}, ADDR: 0x{:x}, RKEY: 0x{:x}",
+    SPDLOG_LOGGER_DEBUG(logger, "Remote RDMA Info - GID: {:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}, QPN: 0x{:x}, ADDR: 0x{:x}, RKEY: 0x{:x}",
                         remote_rdma_info->gid.raw[0], remote_rdma_info->gid.raw[1], remote_rdma_info->gid.raw[2], remote_rdma_info->gid.raw[3],
                         remote_rdma_info->gid.raw[4], remote_rdma_info->gid.raw[5], remote_rdma_info->gid.raw[6], remote_rdma_info->gid.raw[7],
                         remote_rdma_info->gid.raw[8], remote_rdma_info->gid.raw[9], remote_rdma_info->gid.raw[10], remote_rdma_info->gid.raw[11],
@@ -207,10 +214,10 @@ void RDMAManager::start_engine(uint8_t id)
 }
 
 void RDMAManager::sync_states() {
-    SPDLOG_LOGGER_DEBUG(logger, "Syncing RDMA engine states");
     for (auto& pair : _id_2_engines) {
         RDMAEngine* engine = pair.second.first;
         if (pair.second.second) {
+            SPDLOG_LOGGER_DEBUG(logger, "Syncing RDMA engine {} states", pair.first);
             engine->sync_start();
         }
     }

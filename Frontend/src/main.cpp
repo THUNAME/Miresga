@@ -17,6 +17,9 @@
 using json = nlohmann::json;
 
 int main(int argc, char** argv) {
+    // Just set SPDLOG_ACTIVE_LEVEL is not enough to set the log level. Although 
+    // the SPDLOG_LOGGER_DEBUG macro will be compiled out, the logger level is still
+    // set to info by default. So we need to set the log level explicitly.
     #if DEBUG == 1
     spdlog::set_level(spdlog::level::debug);
     #else
