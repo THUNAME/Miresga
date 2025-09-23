@@ -43,8 +43,8 @@ void FrontendController_t::_add_frontend(uint8_t id) {
     // If no active id, just add all crcs to this id. And no need to sync data or start RDMA.
     if (num_active_id == 0) {
         _id_2_num_crcs[id] = 256;
-        for (uint8_t crc = 0; crc < 256; crc++) {
-            crc_2_egressportentry[crc] = _id_2_egress_port[id];
+        for (int crc = 0; crc < 256; crc++) {
+            crc_2_egressportentry[static_cast<uint8_t>(crc)] = _id_2_egress_port[id];
         }
         _active_ids.push_back(id);
         _state = NORMAL;
@@ -56,6 +56,7 @@ void FrontendController_t::_add_frontend(uint8_t id) {
     _id_2_sync_crcs[id] = std::unordered_map<uint8_t, std::vector<uint8_t>>();
     if (num_active_id == 1) {
         uint8_t other_id = _active_ids[0];
+        _id_2_sync_crcs[id] = std::unordered_map<uint8_t, std::vector<uint8_t>>();
         _id_2_sync_crcs[other_id] = std::unordered_map<uint8_t, std::vector<uint8_t>>();
         _id_2_sync_crcs[other_id][id] = std::vector<uint8_t>();
         _id_2_sync_crcs[id][other_id] = std::vector<uint8_t>();
@@ -132,7 +133,7 @@ void FrontendController_t::_add_frontend(uint8_t id) {
             init_msg.append(1, static_cast<char>(num_active_id));
             init_msg.append(reinterpret_cast<const char*>(_active_ids.data()), num_active_id);
         }
-        SPDLOG_LOGGER_DEBUG(logger, "Sending init rdma engine message to {}: {}", active_id, init_msg);
+        SPDLOG_LOGGER_DEBUG(logger, "Sending init rdma engine message to {}", active_id);
         if (send(socket_fd, init_msg.c_str(), init_msg.size(), 0) < 0) {
             SPDLOG_LOGGER_ERROR(logger, "Failed to send init rdma engine message to {}: {}", active_id, init_msg);
             throw std::runtime_error("Failed to send init rdma engine message");
@@ -266,7 +267,7 @@ void FrontendController_t::_update_rdma_info() {
             continue;
         }
         SPDLOG_LOGGER_DEBUG(logger, "Updating RDMA info for {}: {}", _updating_id, id);
-        SPDLOG_LOGGER_DEBUG(logger, "gid: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, qpn: {}, addr: {}, rkey: {}",
+        SPDLOG_LOGGER_DEBUG(logger, "gid: {:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}, qpn: 0x{:x}, addr: 0x{:x}, rkey: 0x{:x}",
                             _id_2_rdma_info[id][_updating_id].gid[0], _id_2_rdma_info[id][_updating_id].gid[1], _id_2_rdma_info[id][_updating_id].gid[2], _id_2_rdma_info[id][_updating_id].gid[3],
                             _id_2_rdma_info[id][_updating_id].gid[4], _id_2_rdma_info[id][_updating_id].gid[5], _id_2_rdma_info[id][_updating_id].gid[6], _id_2_rdma_info[id][_updating_id].gid[7],
                             _id_2_rdma_info[id][_updating_id].gid[8], _id_2_rdma_info[id][_updating_id].gid[9], _id_2_rdma_info[id][_updating_id].gid[10], _id_2_rdma_info[id][_updating_id].gid[11],
@@ -326,6 +327,7 @@ void FrontendController_t::_main_loop() {
             SPDLOG_LOGGER_ERROR(logger, "Failed to wait on epoll");
             throw std::runtime_error("Failed to wait on epoll");
         }
+        SPDLOG_LOGGER_DEBUG(logger, "Get {} event.", nfds);
         for (int n = 0; n < nfds; n++) {
             if (events[n].data.fd == _socket_fd) {
                 SPDLOG_LOGGER_DEBUG(logger, "New connection accepted");
@@ -402,10 +404,10 @@ void FrontendController_t::_main_loop() {
                             for (uint8_t i = 0; i < num_update; ++i) {
                                 uint8_t remote_id = recv_buffer[now_bytes];
                                 now_bytes++;
-                                SPDLOG_LOGGER_DEBUG(logger, "Updating RDMA info from {}: {}", id, remote_id);
+                                SPDLOG_LOGGER_DEBUG(logger, "Get RDMA info from {}: {}", id, remote_id);
                                 _id_2_rdma_info[id][remote_id] = RDMAInfo_t();
                                 memcpy(&_id_2_rdma_info[id][remote_id], recv_buffer + now_bytes, sizeof(RDMAInfo_t));
-                                SPDLOG_LOGGER_DEBUG(logger, "gid: {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, qpn: {}, addr: {}, rkey: {}",
+                                SPDLOG_LOGGER_DEBUG(logger, "gid: {:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}, qpn: 0x{:x}, addr: 0x{:x}, rkey: 0x{:x}",
                                                     _id_2_rdma_info[id][remote_id].gid[0], _id_2_rdma_info[id][remote_id].gid[1], _id_2_rdma_info[id][remote_id].gid[2], _id_2_rdma_info[id][remote_id].gid[3],
                                                     _id_2_rdma_info[id][remote_id].gid[4], _id_2_rdma_info[id][remote_id].gid[5], _id_2_rdma_info[id][remote_id].gid[6], _id_2_rdma_info[id][remote_id].gid[7],
                                                     _id_2_rdma_info[id][remote_id].gid[8], _id_2_rdma_info[id][remote_id].gid[9], _id_2_rdma_info[id][remote_id].gid[10], _id_2_rdma_info[id][remote_id].gid[11],

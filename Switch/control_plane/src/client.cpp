@@ -240,12 +240,14 @@ void SwitchClient_t::del_offload_entries(std::vector<MiresgaOFTKey_t> keys) {
 }
 
 void SwitchClient_t::start_updating(std::unordered_map<uint8_t, EgressPortEntry_t> new_crc_2_idx) {
+    SPDLOG_LOGGER_DEBUG(logger, "Start updating");
     TableInfo_t* new_tb;
     if (_new_tb_idx == 1) {
         new_tb = _lb_index_to_egress_port_table_0;
     } else {
         new_tb = _lb_index_to_egress_port_table_1;
     }
+    new_tb->clear_all_entry();
     std::vector<std::vector<KeyInput_t>> key_field_values;
     std::vector<std::vector<DataInput_t>> data_field_values;
     std::string action_name = "SwitchIngress.set_egress_port";

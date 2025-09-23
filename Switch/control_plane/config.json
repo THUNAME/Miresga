@@ -6,13 +6,13 @@
     "client_servers_info": [
         {
             "ip": "10.0.0.2",
-            "mac": "b4:96:91:db:d6:78",
-            "egress_port": 56
+            "mac": "0c:42:a1:d1:d0:c8",
+            "egress_port": 52
         },
         {
             "ip": "10.0.0.3",
-            "mac": "b4:96:91:b1:d7:38",
-            "egress_port": 16
+            "mac": "0c:42:a1:98:aa:30",
+            "egress_port": 0
         }
     ],
     "frontend_gateway": "10.0.1.1",
@@ -28,13 +28,13 @@
             "client_ip": "10.0.1.3",
             "client_mac": "d2:d2:09:e1:e9:8b",
             "frontend_mac": "4e:52:f0:f3:b8:fe",
-            "egress_port": 0
+            "egress_port": 8
         }, 
         {
             "client_ip": "10.0.1.4",
-            "client_mac": "0c:42:a1:98:aa:31",
-            "frontend_mac": "26:6f:62:ef:93:bb",
-            "egress_port": 16
+            "client_mac": "5e:eb:69:90:40:7a",
+            "frontend_mac": "02:33:20:07:b1:1e",
+            "egress_port": 60
         }
     ],
     "backend_gateway": "10.0.2.1",
@@ -42,9 +42,9 @@
     "backend_servers_info": [
         {
             "ip": "10.0.2.2",
-            "egress_port": 52,
+            "egress_port": 56,
             "port": 80,
-            "mac": "0c:42:a1:d1:d0:c8",
+            "mac": "b4:96:91:db:d6:78",
             "rules": [
                 {
                     "key": "1KBFile",
@@ -70,9 +70,9 @@
         },
         {
             "ip": "10.0.2.3",
-            "egress_port": 8,
+            "egress_port": 16,
             "port": 80,
-            "mac": "38:25:f3:f3:78:ea",
+            "mac": "b4:96:91:b1:d7:38",
             "rules": [
                 {
                     "key": "8MBFile",

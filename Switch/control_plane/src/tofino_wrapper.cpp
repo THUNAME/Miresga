@@ -100,7 +100,7 @@ void SwitchInfo_t::add_batched_entry(const bf_rt_table_hdl* table_hdl,
         status = bf_rt_table_entry_add(table_hdl, _session, _dev_tgt,
                                        key_hdls[i], data_hdls[i]);
         if (status != BF_SUCCESS) {
-            SPDLOG_LOGGER_ERROR(logger, "Failed to add entry");
+            SPDLOG_LOGGER_ERROR(logger, "Failed to add entry, {}", bf_err_str(status));
             throw std::runtime_error("Failed to add entry");
         }
     }
@@ -303,14 +303,16 @@ void TableInfo_t::add_entry(std::vector<std::vector<KeyInput_t>> key_field_value
                             std::vector<std::vector<DataInput_t>> data_field_values) {
     SPDLOG_LOGGER_DEBUG(logger, "Adding entries");
     size_t remain_entry = key_field_values.size();
+    size_t offset = 0;
     while (remain_entry > 0) {
         size_t batch_size = std::min(remain_entry, (size_t)MAX_BATCH_SIZE);
         for (size_t i = 0; i < batch_size; i++) {
             auto& key_hdl = _key_hdls[i];
-            for (const auto& key_field_value : key_field_values[i]) {
+            for (const auto& key_field_value : key_field_values[i + offset]) {
                 bf_rt_id_t key_id = _key_name_2_id_map[key_field_value.name].first;
                 bf_rt_key_field_type_t match_type = _key_name_2_id_map[key_field_value.name].second;
                 uint64_t value = key_field_value.value;
+                SPDLOG_LOGGER_DEBUG(logger, "{}", value);
                 bf_status_t status;
                 switch (match_type) {
                     case bf_rt_key_field_type_t::EXACT:
@@ -356,7 +358,7 @@ void TableInfo_t::add_entry(std::vector<std::vector<KeyInput_t>> key_field_value
                     throw std::runtime_error("Failed to allocate action data handle");
                 }
             }
-            for (const auto& data_field_value : data_field_values[i]) {
+            for (const auto& data_field_value : data_field_values[i + offset]) {
                 bf_rt_id_t data_id = _data_name_2_id_map[data_field_value.name];
                 uint64_t value = data_field_value.value;
                 bf_status_t status = bf_rt_data_field_set_value(data_hdl, data_id, value);
@@ -368,6 +370,7 @@ void TableInfo_t::add_entry(std::vector<std::vector<KeyInput_t>> key_field_value
         }
         _switch_info->add_batched_entry(_table_hdl, _key_hdls, _data_hdls, batch_size);
         remain_entry -= batch_size;
+        offset += batch_size;
         SPDLOG_LOGGER_DEBUG(logger, "Remaining entries: {}", remain_entry);
     }
 }
@@ -375,11 +378,12 @@ void TableInfo_t::add_entry(std::vector<std::vector<KeyInput_t>> key_field_value
 void TableInfo_t::delete_entry(std::vector<std::vector<KeyInput_t>> key_field_values) {
     SPDLOG_LOGGER_DEBUG(logger, "Deleting entries");
     size_t remain_entry = key_field_values.size();
+    size_t offset = 0;
     while (remain_entry > 0) {
         size_t batch_size = std::min(remain_entry, (size_t)MAX_BATCH_SIZE);
         for (size_t i = 0; i < batch_size; i++) {
             auto& key_hdl = _key_hdls[i];
-            for (const auto& key_field_value : key_field_values[i]) {
+            for (const auto& key_field_value : key_field_values[i + offset]) {
                 bf_rt_id_t key_id = _key_name_2_id_map[key_field_value.name].first;
                 bf_rt_key_field_type_t match_type = _key_name_2_id_map[key_field_value.name].second;
                 uint64_t value = key_field_value.value;
@@ -422,6 +426,7 @@ void TableInfo_t::delete_entry(std::vector<std::vector<KeyInput_t>> key_field_va
         }
         _switch_info->delete_batched_entry(_table_hdl, _key_hdls, batch_size);
         remain_entry -= batch_size;
+        offset += batch_size;
         SPDLOG_LOGGER_DEBUG(logger, "Remaining entries: {}", remain_entry);
     }
 }
