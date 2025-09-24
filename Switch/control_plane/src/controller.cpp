@@ -138,6 +138,7 @@ void FrontendController_t::_add_frontend(uint8_t id) {
             SPDLOG_LOGGER_ERROR(logger, "Failed to send init rdma engine message to {}: {}", active_id, init_msg);
             throw std::runtime_error("Failed to send init rdma engine message");
         }
+        _wait_rdma_info_ids.insert(id);
     }
     for (auto [active_id, id_2_crc_map] : _id_2_sync_crcs) {
         SPDLOG_LOGGER_DEBUG(logger, "{}: ", active_id);
@@ -301,8 +302,15 @@ void FrontendController_t::_update_rdma_info() {
         update_msg.append(1, static_cast<char>(UPDATE_RDMA_INFO));
         update_msg.append(1, static_cast<char>(1));
         update_msg.append(1, static_cast<char>(_updating_id));
+        update_msg.append(1, static_cast<char>(_id_2_sync_crcs[id][_updating_id].size()));
+        update_msg.append(reinterpret_cast<char*>(_id_2_sync_crcs[id][_updating_id].data()), _id_2_sync_crcs[id][_updating_id].size());
         RDMAInfo_t rdma_info = _id_2_rdma_info[_updating_id][id];
         char* info_ptr = reinterpret_cast<char*>(&rdma_info);
+        SPDLOG_LOGGER_DEBUG(logger, "gid: {:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}, qpn: 0x{:x}, addr: 0x{:x}, rkey: 0x{:x}",
+                            rdma_info.gid[0], rdma_info.gid[1], rdma_info.gid[2], rdma_info.gid[3], rdma_info.gid[4], rdma_info.gid[5], rdma_info.gid[6], rdma_info.gid[7],
+                            rdma_info.gid[8], rdma_info.gid[9], rdma_info.gid[10], rdma_info.gid[11], rdma_info.gid[12], rdma_info.gid[13], rdma_info.gid[14], rdma_info.gid[15],
+                            rdma_info.qpn, rdma_info.addr, rdma_info.rkey);
+        SPDLOG_LOGGER_DEBUG(logger, "Sync CRCs: {}", fmt::join(_id_2_sync_crcs[id][_updating_id], ","));
         update_msg.append(info_ptr, sizeof(RDMAInfo_t));
         int other_fd = _id_2_socket_fd[id];
         if (send(other_fd, update_msg.c_str(), update_msg.size(), 0) < 0) {
@@ -327,7 +335,6 @@ void FrontendController_t::_main_loop() {
             SPDLOG_LOGGER_ERROR(logger, "Failed to wait on epoll");
             throw std::runtime_error("Failed to wait on epoll");
         }
-        SPDLOG_LOGGER_DEBUG(logger, "Get {} event.", nfds);
         for (int n = 0; n < nfds; n++) {
             if (events[n].data.fd == _socket_fd) {
                 SPDLOG_LOGGER_DEBUG(logger, "New connection accepted");
@@ -364,16 +371,11 @@ void FrontendController_t::_main_loop() {
             } else if(events[n].data.u32 == TIMER_PRESENTOR) {
                 uint64_t expirations;
                 SPDLOG_LOGGER_DEBUG(logger, "Reading timerfd");
-                ssize_t recv_size = read(events[n].data.fd, &expirations, sizeof(expirations));
+                ssize_t recv_size = read(_timer_fd, &expirations, sizeof(expirations));
                 if (recv_size == -1) {
                     SPDLOG_LOGGER_ERROR(logger, "Failed to read timerfd");
                     throw std::runtime_error("Failed to read timerfd");
                 }
-                if (epoll_ctl(_epoll_fd, EPOLL_CTL_DEL, events[n].data.fd, NULL) == -1) {
-                    SPDLOG_LOGGER_ERROR(logger, "Failed to remove timerfd from epoll");
-                    throw std::runtime_error("Failed to remove timerfd from epoll");
-                }
-                close(events[n].data.fd);
                 if (_state == WAIT_SYNC) {
                     _state = NORMAL;
                     SPDLOG_LOGGER_DEBUG(logger, "Finishing updating");
@@ -386,7 +388,7 @@ void FrontendController_t::_main_loop() {
                 ssize_t recv_size = recv(conn_fd, recv_buffer, sizeof(recv_buffer), 0);
                 if (recv_size < 0) {
                     if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                        SPDLOG_LOGGER_ERROR(logger, "Failed to receive message");
+                        SPDLOG_LOGGER_ERROR(logger, "Failed to receive message, {}", strerror(errno));
                         throw std::runtime_error("Failed to receive message");
                     }
                 }
@@ -489,30 +491,16 @@ void FrontendController_t::_main_loop() {
                                     }
                                     _state = WAIT_SYNC;
                                     _id_2_need_changed_crcs.clear();
-                                    SPDLOG_LOGGER_DEBUG(logger, "Creating timerfd");
-                                    int timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
-                                    if (timer_fd == -1) {
-                                        SPDLOG_LOGGER_ERROR(logger, "Failed to create timerfd");
-                                        throw std::runtime_error("Failed to create timerfd");
-                                    }
+                                    SPDLOG_LOGGER_DEBUG(logger, "Setting timerfd");
                                     itimerspec new_value;
                                     new_value.it_value.tv_sec = 0;
-                                    new_value.it_value.tv_nsec = 100000000; // 100 ms
+                                    new_value.it_value.tv_nsec = 500000000; // 500 ms
                                     new_value.it_interval.tv_sec = 0;
                                     new_value.it_interval.tv_nsec = 0;
-                                    if (timerfd_settime(timer_fd, 0, &new_value, nullptr) == -1) {
+                                    if (timerfd_settime(_timer_fd, 0, &new_value, nullptr) == -1) {
                                         SPDLOG_LOGGER_ERROR(logger, "Failed to set timerfd");
                                         throw std::runtime_error("Failed to set timerfd");
                                     }
-                                    epoll_event ev;
-                                    ev.events = EPOLLIN;
-                                    ev.data.u32 = TIMER_PRESENTOR;
-                                    ev.data.fd = timer_fd;
-                                    if (epoll_ctl(_epoll_fd, EPOLL_CTL_ADD, timer_fd, &ev) == -1) {
-                                        SPDLOG_LOGGER_ERROR(logger, "Failed to add timerfd to epoll");
-                                        throw std::runtime_error("Failed to add timerfd to epoll");
-                                    }
-
                                 }
                             }
                             else if(_state == WAIT_INIT_DINDEX) {
@@ -554,6 +542,11 @@ void FrontendController_t::stop() {
 
 FrontendController_t::FrontendController_t(std::string config_path) {
     SPDLOG_LOGGER_INFO(logger, "Initializing Controller.");
+    _timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
+    if (_timer_fd == -1) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to create timerfd");
+        throw std::runtime_error("Failed to create timerfd");
+    }
     _socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (_socket_fd < 0) {
         SPDLOG_LOGGER_ERROR(logger, "Failed to create socket");
@@ -581,12 +574,19 @@ FrontendController_t::FrontendController_t(std::string config_path) {
         SPDLOG_LOGGER_ERROR(logger, "Failed to create epoll instance");
         throw std::runtime_error("Failed to create epoll instance");
     }
-    struct epoll_event ev;
-    ev.events = EPOLLIN;
-    ev.data.fd = _socket_fd;
-    if (epoll_ctl(_epoll_fd, EPOLL_CTL_ADD, _socket_fd, &ev) < 0) {
+    epoll_event socket_ev;
+    socket_ev.events = EPOLLIN;
+    socket_ev.data.fd = _socket_fd;
+    if (epoll_ctl(_epoll_fd, EPOLL_CTL_ADD, _socket_fd, &socket_ev) < 0) {
         SPDLOG_LOGGER_ERROR(logger, "Failed to add socket to epoll");
         throw std::runtime_error("Failed to add socket to epoll");
+    }
+    epoll_event timer_ev;
+    timer_ev.events = EPOLLIN;
+    timer_ev.data.u32 = TIMER_PRESENTOR;
+    if (epoll_ctl(_epoll_fd, EPOLL_CTL_ADD, _timer_fd, &timer_ev) == -1) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to add timerfd to epoll");
+        throw std::runtime_error("Failed to add timerfd to epoll");
     }
     _client = SwitchClient_t::get_instance();
     _state = INIT;

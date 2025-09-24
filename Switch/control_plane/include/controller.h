@@ -72,6 +72,7 @@ struct ServerInfo_t
 class FrontendController_t {
 private:
     inline static FrontendController_t* _instance = nullptr;
+    int _timer_fd;
     int _socket_fd;
     int _epoll_fd;
     bool _exit_flag;
