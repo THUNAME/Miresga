@@ -242,7 +242,7 @@ void RDMAManager::add_flow_data(MiresgaOFTEntry_t* add_data) {
 
 void RDMAManager::add_old_flow_data(uint8_t remote_id, std::vector<MiresgaOFTEntry_t>& add_data_vec) {
     if (add_data_vec.empty()) {
-        SPDLOG_LOGGER_WARN(logger, "No flow data to add for remote ID: {}", remote_id);
+        SPDLOG_LOGGER_DEBUG(logger, "No flow data to add for remote ID: {}", remote_id);
         return;
     }
     SPDLOG_LOGGER_DEBUG(logger, "Adding {} old flow data entries for remote ID: {}", add_data_vec.size(), remote_id);
