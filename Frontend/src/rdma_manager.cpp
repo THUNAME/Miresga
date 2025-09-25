@@ -235,6 +235,10 @@ void RDMAManager::add_flow_data(MiresgaOFTEntry_t* add_data) {
                         add_data->key.client_port, add_data->key.crc, add_data->key.crc,
                         add_data->data.flow_state, add_data->data.d_index);
     #endif
+    if (_id_2_engines.empty()) {
+        SPDLOG_LOGGER_DEBUG(logger, "No RDMA engines available to add flow data");
+        return;
+    }
     uint8_t crc = add_data->key.crc;
     uint8_t id = _crc_2_id[crc];
     _id_2_engines[id].first->add_flow_data(add_data);
@@ -259,6 +263,10 @@ void RDMAManager::del_flow_data(MiresgaOFTKey_t* del_data) {
                         inet_ntop(AF_INET, &del_data->client_ip, ip_str, INET_ADDRSTRLEN), 
                         del_data->client_port, del_data->crc);
     #endif
+    if (_id_2_engines.empty()) {
+        SPDLOG_LOGGER_DEBUG(logger, "No RDMA engines available to del flow data");
+        return;
+    }
     uint8_t crc = del_data->crc;
     uint8_t id = _crc_2_id[crc];
     _id_2_engines[id].first->del_flow_data(del_data);
