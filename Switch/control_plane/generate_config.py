@@ -179,7 +179,7 @@ for i in range(len(config["backend_servers_info"])):
             ],
             "action_name": ingress_prefix + "forward_arp",
             "datas": [
-                {"name": "dst_port", "value": backend_port}
+                {"name": "dst_port", "value": backend_egress_port}
             ]
         }
     )

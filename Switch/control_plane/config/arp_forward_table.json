@@ -39,7 +39,7 @@
             "datas": [
                 {
                     "name": "dst_port", 
-                    "value": 80
+                    "value": 56
                 }
             ], 
             "action_name": "SwitchIngress.forward_arp"
@@ -58,7 +58,7 @@
             "datas": [
                 {
                     "name": "dst_port", 
-                    "value": 80
+                    "value": 16
                 }
             ], 
             "action_name": "SwitchIngress.forward_arp"
