@@ -312,7 +312,6 @@ void TableInfo_t::add_entry(std::vector<std::vector<KeyInput_t>> key_field_value
                 bf_rt_id_t key_id = _key_name_2_id_map[key_field_value.name].first;
                 bf_rt_key_field_type_t match_type = _key_name_2_id_map[key_field_value.name].second;
                 uint64_t value = key_field_value.value;
-                SPDLOG_LOGGER_DEBUG(logger, "{}", value);
                 bf_status_t status;
                 switch (match_type) {
                     case bf_rt_key_field_type_t::EXACT:

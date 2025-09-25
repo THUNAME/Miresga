@@ -172,6 +172,17 @@ for i in range(len(config["backend_servers_info"])):
             ]
         }
     )
+    arp_forward_table_config["initial_entries"].append(
+        {
+            "keys": [
+                {"name": "hdr.arp.target_proto_addr", "value":{"raw": backend_ip, "type": "ipv4"}, "match_type": "exact"}
+            ],
+            "action_name": ingress_prefix + "forward_arp",
+            "datas": [
+                {"name": "dst_port", "value": backend_port}
+            ]
+        }
+    )
 
 for i in range(len(config["client_servers_info"])):
     client_ip = config["client_servers_info"][i]["ip"]
@@ -186,6 +197,17 @@ for i in range(len(config["client_servers_info"])):
             "datas": [
                 {"name": "src_mac", "value": {"raw": config["client_gateway_mac"], "type": "mac"}},
                 {"name": "dst_mac", "value": {"raw": client_mac, "type": "mac"}},
+                {"name": "dst_port", "value": client_egress_port}
+            ]
+        }
+    )
+    arp_forward_table_config["initial_entries"].append(
+        {
+            "keys": [
+                {"name": "hdr.arp.target_proto_addr", "value":{"raw": client_ip, "type": "ipv4"}, "match_type": "exact"}
+            ],
+            "action_name": ingress_prefix + "forward_arp",
+            "datas": [
                 {"name": "dst_port", "value": client_egress_port}
             ]
         }
