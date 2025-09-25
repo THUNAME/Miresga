@@ -391,6 +391,7 @@ void ControllerClient::destroy_instance()
 void ControllerClient::stop()
 {
     _exit_flag = true;
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     if (_epoll_fd != -1) {
         close(_epoll_fd);
         _epoll_fd = -1;

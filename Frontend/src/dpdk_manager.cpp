@@ -92,10 +92,6 @@ DPDKManager::DPDKManager(int argc, char **argv, DPDKConfig_t* dpdk_config) {
 
 DPDKManager::~DPDKManager() {
     rte_mempool_free(mbuf_pool);
-    for (int i = 0; i < dpdk_config->queue_size; ++i) {
-        rte_eth_dev_rx_queue_stop(port_id, i);
-        rte_eth_dev_tx_queue_stop(port_id, i);
-    }
     rte_eth_dev_stop(port_id);
     rte_eth_dev_close(port_id);
     rte_eal_cleanup();
@@ -119,6 +115,11 @@ DPDKManager* DPDKManager::get_instance() {
 void DPDKManager::destroy_instance() {
     if (_instance != nullptr) {
         SPDLOG_LOGGER_WARN(logger, "Destroying DPDKManager instance");
+        uint32_t core_id;
+        RTE_LCORE_FOREACH_WORKER(core_id) {
+            rte_eal_wait_lcore(core_id);
+            SPDLOG_LOGGER_DEBUG(logger, "Worker on core {} stopped", core_id);
+        }
         delete _instance;
         _instance = nullptr;
     }

@@ -572,9 +572,4 @@ void PktProcessor::start(int core_id) {
 
 void PktProcessor::stop() {
     _exit_flag = true;
-    uint32_t core_id;
-    RTE_LCORE_FOREACH_WORKER(core_id) {
-        rte_eal_wait_lcore(core_id);
-        SPDLOG_LOGGER_DEBUG(logger, "Packet processor on core {} stopped", core_id);
-    }
 }
