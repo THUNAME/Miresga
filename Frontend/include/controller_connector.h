@@ -7,6 +7,7 @@
 #include "miresga_utils.h"
 #include "spdlog/sinks/stdout_color_sinks.h"
 
+#include <fcntl.h>
 #include <unistd.h>
 #include <stdexcept>
 #include <arpa/inet.h>

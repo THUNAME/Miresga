@@ -166,7 +166,7 @@ void RDMAEngine::del_flow_data(MiresgaOFTKey_t* data) {
 }
 
 void RDMAEngine::sync_start() {
-    SPDLOG_LOGGER_DEBUG(logger, "Syncing RDMA Engine ID: {}", _id);
+    // SPDLOG_LOGGER_DEBUG(logger, "Syncing RDMA Engine ID: {}", _id);
     ibv_sge all_sge[2];
     int num_sge = 0;
     bool changed = false;
@@ -174,7 +174,7 @@ void RDMAEngine::sync_start() {
     _send_add_buffer->create_sge(all_sge[0], changed_1);
     _send_del_buffer->create_sge(all_sge[1], changed_2);
     if (!changed_1 && !changed_2) {
-        SPDLOG_LOGGER_DEBUG(logger, "No new data to sync for RDMA Engine ID: {}", _id);
+        // SPDLOG_LOGGER_DEBUG(logger, "No new data to sync for RDMA Engine ID: {}", _id);
         return;
     }
     ibv_send_wr send_wr;

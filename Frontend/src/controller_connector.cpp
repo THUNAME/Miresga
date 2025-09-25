@@ -21,6 +21,18 @@ ControllerConnector::ControllerConnector(char* controller_ip, uint16_t controlle
         ::close(socket);
         throw std::runtime_error("Failed to connect to controller");
     }
+
+    int flags = fcntl(socket, F_GETFL, 0);
+    if (flags == -1) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to get socket flags");
+        ::close(socket);
+        throw std::runtime_error("Failed to get socket flags");
+    }
+    if (fcntl(socket, F_SETFL, flags| O_NONBLOCK) == -1) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to set socket to non-blocking");
+        ::close(socket);
+        throw std::runtime_error("Failed to set socket to non-blocking");
+    }
 }
 
 ControllerConnector::~ControllerConnector()

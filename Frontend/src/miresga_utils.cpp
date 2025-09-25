@@ -84,7 +84,7 @@ void RDMABuffer_t::create_sge(ibv_sge& sge, bool& changed) {
         need_send = num_used.load() - num_sent;
     }
     if (need_send == 0) {
-        SPDLOG_LOGGER_DEBUG(logger, "No new data to send");
+        // SPDLOG_LOGGER_DEBUG(logger, "No new data to send");
         changed = false;
     }
     else{

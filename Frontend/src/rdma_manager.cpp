@@ -217,7 +217,7 @@ void RDMAManager::sync_states() {
     for (auto& pair : _id_2_engines) {
         RDMAEngine* engine = pair.second.first;
         if (pair.second.second) {
-            SPDLOG_LOGGER_DEBUG(logger, "Syncing RDMA engine {} states", pair.first);
+            // SPDLOG_LOGGER_DEBUG(logger, "Syncing RDMA engine {} states", pair.first);
             engine->sync_start();
         }
     }
