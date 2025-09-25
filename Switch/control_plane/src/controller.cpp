@@ -10,8 +10,8 @@ std::string FrontendController_t::_serializing_rule_table() {
     for (const auto& [key, rule_entry] : _rule_table) {
         msg.append(key);
         msg.append(1, '\0');
-        msg.append(1, static_cast<char>(rule_entry.offload_flag));
         msg.append(1, static_cast<char>(rule_entry.d_index));
+        msg.append(1, static_cast<char>(rule_entry.offload_flag));
     }
     return msg;
 }

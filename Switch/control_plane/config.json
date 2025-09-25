@@ -48,7 +48,7 @@
             "rules": [
                 {
                     "key": "Backend1/1KBFile",
-                    "offload_flag": 1
+                    "offload_flag": 0
                 },
                 {
                     "key": "Backend1/8KBFile",
@@ -92,7 +92,7 @@
             "rules": [
                 {
                     "key": "Backend2/1KBFile",
-                    "offload_flag": 1
+                    "offload_flag": 0
                 },
                 {
                     "key": "Backend2/8KBFile",
