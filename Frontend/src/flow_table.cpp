@@ -30,7 +30,7 @@ void FlowTable::destroy_instance() {
     }
 }
 
-void FlowTable::insert_flow(MiresgaOFTKey_t& key, MiresgaFlowData_t* flow_data) {
+__attribute__((always_inline)) void FlowTable::insert_flow(MiresgaOFTKey_t& key, MiresgaFlowData_t* flow_data) {
     #ifdef DEBUG
     char ip_str[INET_ADDRSTRLEN];
     SPDLOG_LOGGER_DEBUG(logger, "Insert flow: key={}:{}", inet_ntop(AF_INET, &key.client_ip, ip_str, INET_ADDRSTRLEN), key.client_port);
@@ -39,7 +39,7 @@ void FlowTable::insert_flow(MiresgaOFTKey_t& key, MiresgaFlowData_t* flow_data) 
     _flow_map[key.crc].emplace(packed_key(key), flow_data);
 }
 
-MiresgaFlowData_t* FlowTable::get_flow(MiresgaOFTKey_t& key) {
+__attribute__((always_inline)) MiresgaFlowData_t* FlowTable::get_flow(MiresgaOFTKey_t& key) {
     MiresgaFlowData_t* res = nullptr;
     _flow_map[key.crc].visit(packed_key(key), [&](const auto& item) {
         #ifdef DEBUG
@@ -51,7 +51,7 @@ MiresgaFlowData_t* FlowTable::get_flow(MiresgaOFTKey_t& key) {
     return res;
 }
 
-void FlowTable::remove_flow(MiresgaOFTKey_t& key) {
+__attribute__((always_inline)) void FlowTable::remove_flow(MiresgaOFTKey_t& key) {
     _flow_map[key.crc].visit(packed_key(key), [&](const auto& item) {
         #ifdef DEBUG
         char ip_str[INET_ADDRSTRLEN];
@@ -62,7 +62,7 @@ void FlowTable::remove_flow(MiresgaOFTKey_t& key) {
     _flow_map[key.crc].erase(packed_key(key));
 }
 
-std::vector<MiresgaOFTEntry_t> FlowTable::get_crc_entries(uint8_t crc) {
+__attribute__((always_inline)) std::vector<MiresgaOFTEntry_t> FlowTable::get_crc_entries(uint8_t crc) {
     std::vector<MiresgaOFTEntry_t> res;
     // Do not lock the map. Otherwise this function may block the packet processor threads.
     _flow_map[crc].visit_all([&res](const auto& item) {

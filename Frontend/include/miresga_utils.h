@@ -14,7 +14,6 @@
 
 extern "C" {
     #include <rte_ether.h>
-    #include <rte_malloc.h>
 }
 
 struct RDMAInfo_t {

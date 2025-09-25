@@ -2,35 +2,35 @@
 
 static auto logger = spdlog::stdout_color_mt("MiresgaUtils");
 
-MiresgaFlowData_t::MiresgaFlowData_t() {
+__attribute__((always_inline)) MiresgaFlowData_t::MiresgaFlowData_t() {
     recv_pkt = nullptr;
     recv_pkt_size = 0;
     state = INIT;
 }
 
-MiresgaFlowData_t::~MiresgaFlowData_t() {
+__attribute__((always_inline)) MiresgaFlowData_t::~MiresgaFlowData_t() {
     if (recv_pkt) {
         delete [] static_cast<char*>(recv_pkt);
         recv_pkt = nullptr;
     }
 }
 
-uint64_t packed_key(const MiresgaOFTKey_t key) {
+__attribute__((always_inline)) uint64_t packed_key(const MiresgaOFTKey_t key) {
     return (static_cast<uint64_t>(key.crc) << 48) |
            (static_cast<uint64_t>(key.client_ip) << 16) |
            static_cast<uint64_t>(key.client_port);
 }
 
-RDMABuffer_t::RDMABuffer_t(size_t size, ibv_pd* pd) {
+__attribute__((always_inline)) RDMABuffer_t::RDMABuffer_t(size_t size, ibv_pd* pd) {
     this->size = size;
     this->num_used = 0;
     this->num_sent = 0;
     buffer = static_cast<void*>(new char[size]);
-    if (buffer == nullptr) {
+    if (unlikely(buffer == nullptr)) {
         throw std::runtime_error("Failed to allocate RDMA buffer");
     }
     mr = ibv_reg_mr(pd, buffer, size, IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
-    if (mr == nullptr) {
+    if (unlikely(mr == nullptr)) {
         delete[] static_cast<char*>(buffer);
         throw std::runtime_error("Failed to register MR");
     }
@@ -47,7 +47,7 @@ RDMABuffer_t::~RDMABuffer_t() {
     }
 }
 
-size_t RDMABuffer_t::add_new_data(void* data, size_t data_size) {
+__attribute__((always_inline)) size_t RDMABuffer_t::add_new_data(void* data, size_t data_size) {
     size_t add_size = 0;
     size_t offset = 0;
     {
@@ -77,7 +77,7 @@ size_t RDMABuffer_t::add_new_data(void* data, size_t data_size) {
     return add_size;
 }
 
-void RDMABuffer_t::create_sge(ibv_sge& sge, bool& changed) {
+__attribute__((always_inline)) void RDMABuffer_t::create_sge(ibv_sge& sge, bool& changed) {
     size_t need_send = 0;
     {
         std::shared_lock<std::shared_mutex> lock(mutex);
@@ -97,7 +97,7 @@ void RDMABuffer_t::create_sge(ibv_sge& sge, bool& changed) {
     }
 }
 
-void RDMABuffer_t::remove_last_send_data() {
+__attribute__((always_inline)) void RDMABuffer_t::remove_last_send_data() {
     SPDLOG_LOGGER_DEBUG(logger, "Removing last sent data of {} bytes from RDMA buffer", num_sent);
     std::unique_lock<std::shared_mutex> lock(mutex);
     memcpy(buffer, reinterpret_cast<void*>(reinterpret_cast<char*>(buffer) + num_sent), size - num_sent);

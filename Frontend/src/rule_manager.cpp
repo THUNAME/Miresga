@@ -32,8 +32,8 @@ void RuleManager::destroy_instance() {
     }
 }
 
-MiresgaStatus_t RuleManager::add_rule(std::string host_name, RuleEntry_t* rule) {
-    if (host_name.empty() || rule == nullptr) {
+__attribute__((always_inline)) MiresgaStatus_t RuleManager::add_rule(std::string host_name, RuleEntry_t* rule) {
+    if (unlikely(host_name.empty() || rule == nullptr)) {
         SPDLOG_LOGGER_ERROR(logger, "Empty host name or null rule");
         return INVALID_PARAMETER;
     }
@@ -42,13 +42,13 @@ MiresgaStatus_t RuleManager::add_rule(std::string host_name, RuleEntry_t* rule) 
     return OK;
 }
 
-MiresgaStatus_t RuleManager::remove_rule(std::string host_name) {
-    if (host_name.empty()) {
+__attribute__((always_inline)) MiresgaStatus_t RuleManager::remove_rule(std::string host_name) {
+    if (unlikely(host_name.empty())) {
         SPDLOG_LOGGER_ERROR(logger, "Empty host name");
         return INVALID_PARAMETER;
     }
     auto it = _rule_table.find(host_name);
-    if (it != _rule_table.end()) {
+    if (likely(it != _rule_table.end())) {
         delete it->second;
         _rule_table.erase(it);
         SPDLOG_LOGGER_DEBUG(logger, "Removed rule for host: {}", host_name);
@@ -58,13 +58,13 @@ MiresgaStatus_t RuleManager::remove_rule(std::string host_name) {
     return OUT_OF_RANGE;
 }
 
-MiresgaStatus_t RuleManager::get_rule(std::string host_name, RuleEntry_t** rule) {
-    if (host_name.empty() || rule == nullptr) {
+__attribute__((always_inline)) MiresgaStatus_t RuleManager::get_rule(std::string host_name, RuleEntry_t** rule) {
+    if (unlikely(host_name.empty() || rule == nullptr)) {
         SPDLOG_LOGGER_ERROR(logger, "Empty host name or null rule");
         return INVALID_PARAMETER;
     }
     auto it = _rule_table.find(host_name);
-    if (it != _rule_table.end()) {
+    if (likely(it != _rule_table.end())) {
         SPDLOG_LOGGER_DEBUG(logger, "Found rule for host: {}", host_name);
         *rule = it->second;
         return OK;
@@ -74,8 +74,8 @@ MiresgaStatus_t RuleManager::get_rule(std::string host_name, RuleEntry_t** rule)
     return OUT_OF_RANGE;
 }
 
-MiresgaStatus_t RuleManager::add_rule(char* host_name, RuleEntry_t* rule) {
-    if (host_name == nullptr || rule == nullptr) {
+__attribute__((always_inline)) MiresgaStatus_t RuleManager::add_rule(char* host_name, RuleEntry_t* rule) {
+    if (unlikely(host_name == nullptr || rule == nullptr)) {
         SPDLOG_LOGGER_ERROR(logger, "Null host name or rule");
         return INVALID_PARAMETER;
     }
@@ -85,14 +85,14 @@ MiresgaStatus_t RuleManager::add_rule(char* host_name, RuleEntry_t* rule) {
     return OK;
 }
 
-MiresgaStatus_t RuleManager::remove_rule(char* host_name) {
-    if (host_name == nullptr) {
+__attribute__((always_inline)) MiresgaStatus_t RuleManager::remove_rule(char* host_name) {
+    if (unlikely(host_name == nullptr)) {
         SPDLOG_LOGGER_ERROR(logger, "Null host name");
         return INVALID_PARAMETER;
     }
     std::string key(host_name);
     auto it = _rule_table.find(key);
-    if (it != _rule_table.end()) {
+    if (likely(it != _rule_table.end())) {
         delete it->second;
         _rule_table.erase(it);
         SPDLOG_LOGGER_DEBUG(logger, "Removed rule for host: {}", key);
@@ -102,14 +102,14 @@ MiresgaStatus_t RuleManager::remove_rule(char* host_name) {
     return OUT_OF_RANGE;
 }
 
-MiresgaStatus_t RuleManager::get_rule(char* host_name, RuleEntry_t** rule) {
-    if (host_name == nullptr || rule == nullptr) {
+__attribute__((always_inline)) MiresgaStatus_t RuleManager::get_rule(char* host_name, RuleEntry_t** rule) {
+    if (unlikely(host_name == nullptr || rule == nullptr)) {
         SPDLOG_LOGGER_ERROR(logger, "Null host name or rule");
         return INVALID_PARAMETER;
     }
     std::string key(host_name);
     auto it = _rule_table.find(key);
-    if (it != _rule_table.end()) {
+    if (likely(it != _rule_table.end())) {
         SPDLOG_LOGGER_DEBUG(logger, "Found rule for host: {}", key);
         *rule = it->second;
         return OK;
@@ -119,8 +119,8 @@ MiresgaStatus_t RuleManager::get_rule(char* host_name, RuleEntry_t** rule) {
     return OUT_OF_RANGE;
 }
 
-MiresgaStatus_t RuleManager::add_backend_server_info(uint8_t d_index, ServerInfo_t* server_info) {
-    if (server_info == nullptr) {
+__attribute__((always_inline)) MiresgaStatus_t RuleManager::add_backend_server_info(uint8_t d_index, ServerInfo_t* server_info) {
+    if (unlikely(server_info == nullptr)) {
         SPDLOG_LOGGER_ERROR(logger, "Null server info");
         return INVALID_PARAMETER;
     }
@@ -134,9 +134,9 @@ MiresgaStatus_t RuleManager::add_backend_server_info(uint8_t d_index, ServerInfo
     return OK;
 }
 
-MiresgaStatus_t RuleManager::remove_backend_server_info(uint8_t d_index) {
+__attribute__((always_inline)) MiresgaStatus_t RuleManager::remove_backend_server_info(uint8_t d_index) {
     auto it = _backend_server_info_table.find(d_index);
-    if (it != _backend_server_info_table.end()) {
+    if (likely(it != _backend_server_info_table.end())) {
         SPDLOG_LOGGER_DEBUG(logger, "Removing backend server info for d_index: {}", d_index);
         delete it->second;
         _backend_server_info_table.erase(it);
@@ -146,13 +146,13 @@ MiresgaStatus_t RuleManager::remove_backend_server_info(uint8_t d_index) {
     return OUT_OF_RANGE;
 }
 
-MiresgaStatus_t RuleManager::get_backend_server_info(uint8_t d_index, ServerInfo_t** server_info) {
-    if (server_info == nullptr) {
+__attribute__((always_inline)) MiresgaStatus_t RuleManager::get_backend_server_info(uint8_t d_index, ServerInfo_t** server_info) {
+    if (unlikely(server_info == nullptr)) {
         SPDLOG_LOGGER_ERROR(logger, "Null server info");
         return INVALID_PARAMETER;
     }
     auto it = _backend_server_info_table.find(d_index);
-    if (it != _backend_server_info_table.end()) {
+    if (likely(it != _backend_server_info_table.end())) {
         SPDLOG_LOGGER_DEBUG(logger, "Found backend server info for d_index: {}", d_index);
         *server_info = it->second;
         return OK;
@@ -162,8 +162,8 @@ MiresgaStatus_t RuleManager::get_backend_server_info(uint8_t d_index, ServerInfo
     return OUT_OF_RANGE;
 }
 
-MiresgaStatus_t RuleManager::set_virtual_server_info(ServerInfo_t* server_info) {
-    if (server_info == nullptr) {
+__attribute__((always_inline)) MiresgaStatus_t RuleManager::set_virtual_server_info(ServerInfo_t* server_info) {
+    if (unlikely(server_info == nullptr)) {
         SPDLOG_LOGGER_ERROR(logger, "Null server info");
         return INVALID_PARAMETER;
     }
@@ -180,8 +180,8 @@ MiresgaStatus_t RuleManager::set_virtual_server_info(ServerInfo_t* server_info) 
     return OK;
 }
 
-MiresgaStatus_t RuleManager::get_virtual_server_info(ServerInfo_t** server_info) {
-    if (server_info == nullptr) {
+__attribute__((always_inline)) MiresgaStatus_t RuleManager::get_virtual_server_info(ServerInfo_t** server_info) {
+    if (unlikely(server_info == nullptr)) {
         SPDLOG_LOGGER_ERROR(logger, "Null server info");
         return INVALID_PARAMETER;
     }

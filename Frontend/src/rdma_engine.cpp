@@ -2,7 +2,7 @@
 
 auto logger = spdlog::stdout_color_mt("RDMAEngine");
 
-void RDMAEngine::_create_qp(ibv_pd* pd, ibv_cq* cq) 
+__attribute__((always_inline)) void RDMAEngine::_create_qp(ibv_pd* pd, ibv_cq* cq) 
 {
     SPDLOG_LOGGER_DEBUG(logger, "Creating Queue Pair for RDMA Engine ID: {}", _id);
     ibv_qp_init_attr qp_init_attr;
@@ -17,7 +17,7 @@ void RDMAEngine::_create_qp(ibv_pd* pd, ibv_cq* cq)
         .max_recv_sge = 2};
     qp_init_attr.sq_sig_all = 1;
     _qp = ibv_create_qp(pd, &qp_init_attr);
-    if (!_qp) {
+    if (unlikely(!_qp)) {
         SPDLOG_LOGGER_ERROR(logger, "Failed to create Queue Pair for RDMA Engine ID: {}", _id);
         throw std::runtime_error("Failed to create Queue Pair");
     }
@@ -25,7 +25,7 @@ void RDMAEngine::_create_qp(ibv_pd* pd, ibv_cq* cq)
     SPDLOG_LOGGER_DEBUG(logger, "Local QPN for RDMA Engine ID {}: 0x{:x}", _id, _local_rdma_info->qpn);
 }
 
-void RDMAEngine::_change_qp_to_init() 
+__attribute__((always_inline)) void RDMAEngine::_change_qp_to_init() 
 {
     SPDLOG_LOGGER_DEBUG(logger, "Changing Queue Pair state to INIT for RDMA Engine ID: {}", _id);
     ibv_qp_attr qp_attr;
@@ -33,12 +33,12 @@ void RDMAEngine::_change_qp_to_init()
     qp_attr.qp_state = IBV_QPS_INIT;
     qp_attr.port_num = 1;
     qp_attr.qp_access_flags = IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
-    if (ibv_modify_qp(_qp, &qp_attr, IBV_QP_STATE | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS | IBV_QP_PKEY_INDEX)) {
+    if (unlikely(ibv_modify_qp(_qp, &qp_attr, IBV_QP_STATE | IBV_QP_PORT | IBV_QP_ACCESS_FLAGS | IBV_QP_PKEY_INDEX))) {
         throw std::runtime_error("Failed to modify Queue Pair");
     }
 }
 
-void RDMAEngine::_change_qp_to_rtr() 
+__attribute__((always_inline)) void RDMAEngine::_change_qp_to_rtr() 
 {
     SPDLOG_LOGGER_DEBUG(logger, "Changing Queue Pair state to RTR for RDMA Engine ID: {}", _id);
     ibv_qp_attr qp_attr;
@@ -54,13 +54,13 @@ void RDMAEngine::_change_qp_to_rtr()
     qp_attr.ah_attr.grh.sgid_index = 3;
     qp_attr.ah_attr.grh.hop_limit = 64;
     qp_attr.ah_attr.port_num = 1;
-    if (ibv_modify_qp(_qp, &qp_attr, IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN | IBV_QP_RQ_PSN | IBV_QP_MIN_RNR_TIMER | IBV_QP_MAX_DEST_RD_ATOMIC))
+    if (unlikely(ibv_modify_qp(_qp, &qp_attr, IBV_QP_STATE | IBV_QP_AV | IBV_QP_PATH_MTU | IBV_QP_DEST_QPN | IBV_QP_RQ_PSN | IBV_QP_MIN_RNR_TIMER | IBV_QP_MAX_DEST_RD_ATOMIC)))
     {
         throw std::runtime_error("Failed to modify Queue Pair to RTR");
     }
 }
 
-void RDMAEngine::_change_qp_to_rts() 
+__attribute__((always_inline)) void RDMAEngine::_change_qp_to_rts() 
 {
     SPDLOG_LOGGER_DEBUG(logger, "Changing Queue Pair state to RTS for RDMA Engine ID: {}", _id);
     ibv_qp_attr qp_attr;
@@ -71,13 +71,13 @@ void RDMAEngine::_change_qp_to_rts()
     qp_attr.rnr_retry = 7;
     qp_attr.sq_psn = 0;
     qp_attr.max_rd_atomic = 1;
-    if (ibv_modify_qp(_qp, &qp_attr, IBV_QP_STATE | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY | IBV_QP_SQ_PSN | IBV_QP_MAX_QP_RD_ATOMIC))
+    if (unlikely(ibv_modify_qp(_qp, &qp_attr, IBV_QP_STATE | IBV_QP_TIMEOUT | IBV_QP_RETRY_CNT | IBV_QP_RNR_RETRY | IBV_QP_SQ_PSN | IBV_QP_MAX_QP_RD_ATOMIC)))
     {
         throw std::runtime_error("Failed to modify Queue Pair to RTS");
     }
 }
 
-RDMAEngine::RDMAEngine(uint8_t id, ibv_pd* pd, ibv_cq* cq, ibv_gid& gid)
+__attribute__((always_inline)) RDMAEngine::RDMAEngine(uint8_t id, ibv_pd* pd, ibv_cq* cq, ibv_gid& gid)
 {
     _id = id;
     _local_rdma_info = new RDMAInfo_t();
@@ -92,7 +92,7 @@ RDMAEngine::RDMAEngine(uint8_t id, ibv_pd* pd, ibv_cq* cq, ibv_gid& gid)
     _change_qp_to_init();
 }
 
-RDMAEngine::~RDMAEngine()
+__attribute__((always_inline)) RDMAEngine::~RDMAEngine()
 {
     if (_qp) {
         ibv_destroy_qp(_qp);
@@ -106,8 +106,8 @@ RDMAEngine::~RDMAEngine()
     delete _remote_rdma_info;
 }
 
-void RDMAEngine::init_engine(RDMAInfo_t* remote_rdma_info) {
-    if (!remote_rdma_info) {
+__attribute__((always_inline)) void RDMAEngine::init_engine(RDMAInfo_t* remote_rdma_info) {
+    if (unlikely(remote_rdma_info == nullptr)) {
         SPDLOG_LOGGER_ERROR(logger, "Remote RDMA info is null for Engine ID: {}", _id);
         throw std::runtime_error("Remote RDMA info is null");
     }
@@ -125,8 +125,8 @@ void RDMAEngine::init_engine(RDMAInfo_t* remote_rdma_info) {
     ibv_post_recv(_qp, &recv_wr, &bad_recv_wr);
 }
 
-void RDMAEngine::add_flow_data(MiresgaOFTEntry_t* data) {
-    if (data == nullptr) {
+__attribute__((always_inline)) void RDMAEngine::add_flow_data(MiresgaOFTEntry_t* data) {
+    if (unlikely(data == nullptr)) {
         SPDLOG_LOGGER_ERROR(logger, "Null flow data to add for Engine ID: {}", _id);
         throw std::runtime_error("Null flow data");
     }
@@ -140,8 +140,8 @@ void RDMAEngine::add_flow_data(MiresgaOFTEntry_t* data) {
     _send_add_buffer->add_new_data(static_cast<void*>(data), sizeof(MiresgaOFTEntry_t));
 }
 
-void RDMAEngine::add_flow_data(std::vector<MiresgaOFTEntry_t>& data_vec) {
-    if (data_vec.empty()) {
+__attribute__((always_inline)) void RDMAEngine::add_flow_data(std::vector<MiresgaOFTEntry_t>& data_vec) {
+    if (unlikely(data_vec.empty())) {
         SPDLOG_LOGGER_ERROR(logger, "Empty flow data vector to add for Engine ID: {}", _id);
         throw std::runtime_error("Empty flow data vector");
     }
@@ -151,8 +151,8 @@ void RDMAEngine::add_flow_data(std::vector<MiresgaOFTEntry_t>& data_vec) {
     
 }
 
-void RDMAEngine::del_flow_data(MiresgaOFTKey_t* data) {
-    if (data == nullptr) {
+__attribute__((always_inline)) void RDMAEngine::del_flow_data(MiresgaOFTKey_t* data) {
+    if (unlikely(data == nullptr)) {
         SPDLOG_LOGGER_ERROR(logger, "Null flow data to delete for Engine ID: {}", _id);
         throw std::runtime_error("Null flow data");
     }
@@ -165,7 +165,7 @@ void RDMAEngine::del_flow_data(MiresgaOFTKey_t* data) {
     _send_del_buffer->add_new_data(static_cast<void*>(data), sizeof(MiresgaOFTKey_t));
 }
 
-void RDMAEngine::sync_start() {
+__attribute__((always_inline)) void RDMAEngine::sync_start() {
     // SPDLOG_LOGGER_DEBUG(logger, "Syncing RDMA Engine ID: {}", _id);
     ibv_sge all_sge[2];
     int num_sge = 0;
@@ -185,9 +185,6 @@ void RDMAEngine::sync_start() {
     }
     else if (changed_2 == true) {
         send_wr.sg_list = &all_sge[1];
-    }
-    else {
-        return;
     }
     if (changed_1 == true && changed_2 == true) {
         send_wr.num_sge = 2;
@@ -223,15 +220,15 @@ void RDMAEngine::sync_start() {
     ibv_post_recv(_qp, &recv_wr, &bad_recv_wr);
 }
 
-RDMAInfo_t* RDMAEngine::get_local_rdma_info() {
+__attribute__((always_inline)) RDMAInfo_t* RDMAEngine::get_local_rdma_info() {
     return _local_rdma_info;
 }
 
-void* RDMAEngine::get_recv_addr() {
+__attribute__((always_inline)) void* RDMAEngine::get_recv_addr() {
     return _recv_buffer->buffer;
 }
 
-void RDMAEngine::sync_complete() {
+__attribute__((always_inline)) void RDMAEngine::sync_complete() {
     _send_add_buffer->remove_last_send_data();
     _send_del_buffer->remove_last_send_data();
 }

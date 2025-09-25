@@ -42,23 +42,15 @@ ControllerConnector::~ControllerConnector()
     }
 }
 
-MiresgaStatus_t ControllerConnector::send_message(char* msg, size_t msg_size)
+__attribute__((always_inline)) MiresgaStatus_t ControllerConnector::send_message(char* msg, size_t msg_size)
 {
     ssize_t sent_size = send(socket, msg, msg_size, 0);
-    if (sent_size < 0) {
-        SPDLOG_LOGGER_ERROR(logger, "Failed to send message");
-        return MiresgaStatus_t::INTERNAL_ERROR;
-    }
-    return MiresgaStatus_t::OK;
+    return (sent_size != msg_size) ? MiresgaStatus_t::INTERNAL_ERROR : MiresgaStatus_t::OK;
 }
 
-MiresgaStatus_t ControllerConnector::recv_message(char* buffer, size_t buffer_size, size_t& recv_size)
+__attribute__((always_inline)) MiresgaStatus_t ControllerConnector::recv_message(char* buffer, size_t buffer_size, size_t& recv_size)
 {
     ssize_t received = recv(socket, buffer, buffer_size, 0);
-    if (received < 0) {
-        SPDLOG_LOGGER_ERROR(logger, "Failed to receive message");
-        return MiresgaStatus_t::INTERNAL_ERROR;
-    }
     recv_size = static_cast<size_t>(received);
-    return MiresgaStatus_t::OK;
+    return (received < 0) ? MiresgaStatus_t::INTERNAL_ERROR : MiresgaStatus_t::OK;
 }

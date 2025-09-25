@@ -34,7 +34,7 @@ void EntryManager::destroy_instance()
     }
 }
 
-void EntryManager::add_entry(moodycamel::ProducerToken& token, MiresgaOFTEntry_t entry)
+__attribute__((always_inline)) void EntryManager::add_entry(moodycamel::ProducerToken& token, MiresgaOFTEntry_t entry)
 {
     #ifdef DEBUG
     char ip_str[INET_ADDRSTRLEN];
@@ -47,7 +47,7 @@ void EntryManager::add_entry(moodycamel::ProducerToken& token, MiresgaOFTEntry_t
     _add_queue.enqueue(token, entry);
 }
 
-void EntryManager::del_entry(moodycamel::ProducerToken& token, MiresgaOFTKey_t key)
+__attribute__((always_inline)) void EntryManager::del_entry(moodycamel::ProducerToken& token, MiresgaOFTKey_t key)
 {
     #ifdef DEBUG
     char ip_str[INET_ADDRSTRLEN];
