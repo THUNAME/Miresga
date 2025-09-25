@@ -276,12 +276,14 @@ std::vector<ibv_wc> RDMAManager::process_cqe()
 {
     SPDLOG_LOGGER_DEBUG(logger, "Processing CQE");
     std::vector<ibv_wc> completions;
-    if(ibv_get_cq_event(_comp_channel, &_cq, nullptr) == 0) {
-        ibv_req_notify_cq(_cq, 0);
+    ibv_cq* cq = nullptr;
+    void* cq_context = nullptr;
+    if(ibv_get_cq_event(_comp_channel, &cq, &cq_context) == 0) {
+        ibv_req_notify_cq(cq, 0);
         int num_wc = 0;
         ibv_wc wc;
         do {
-            num_wc = ibv_poll_cq(_cq, 1, &wc);
+            num_wc = ibv_poll_cq(cq, 1, &wc);
             if (num_wc > 0) {
                 completions.push_back(wc);
             } else if (num_wc < 0) {
@@ -289,7 +291,7 @@ std::vector<ibv_wc> RDMAManager::process_cqe()
                 throw std::runtime_error("Failed to poll CQ");
             }
         } while(num_wc != 0);
-        ibv_ack_cq_events(_cq, 1);
+        ibv_ack_cq_events(cq, 1);
     } else {
         SPDLOG_LOGGER_ERROR(logger, "Failed to get CQ event");
         throw std::runtime_error("Failed to get CQ event");
