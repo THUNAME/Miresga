@@ -372,10 +372,10 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                                 flow_data->entry_data.data.flow_state = rule->offload_flag == 1 ? static_cast<uint8_t>(FlowState_t::OFFLOAD) : static_cast<uint8_t>(FlowState_t::ESTABLISHED);
                                 flow_data->state = FlowState_t::BACKEND_SYN;
                                 if (flow_data->recv_pkt != nullptr) {
-                                    rte_free(flow_data->recv_pkt);
+                                    delete [] static_cast<char*>(flow_data->recv_pkt);
                                 }
                                 // Cache the received packet for later use.
-                                flow_data->recv_pkt = (char*)rte_malloc_socket("recv_pkt", recv_mbufs[i]->data_len, 0, _socket_id);
+                                flow_data->recv_pkt = new char[recv_mbufs[i]->data_len];
                                 flow_data->recv_pkt_size = recv_mbufs[i]->data_len;
                                 memcpy(flow_data->recv_pkt, rte_pktmbuf_mtod(recv_mbufs[i], char*), recv_mbufs[i]->data_len);
                             }
@@ -522,13 +522,13 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                             static_cast<int>(rule->d_index));
         _get_inbound_syn_pkt(recv_mbufs[i], rule->d_index, send_mbufs[num_send_pkts]);
         num_send_pkts++;
-        flow_data = static_cast<MiresgaFlowData_t*>(rte_malloc_socket("flow_data", sizeof(MiresgaFlowData_t), 0, _socket_id));
+        flow_data = new MiresgaFlowData_t;
         flow_data->state = FlowState_t::BACKEND_SYN;
         flow_data->entry_data.key = src_oft_key;
         flow_data->entry_data.data.d_index = rule->d_index;
         flow_data->entry_data.data.flow_state = rule->offload_flag == 1 ? static_cast<uint8_t>(FlowState_t::OFFLOAD) : static_cast<uint8_t>(FlowState_t::ESTABLISHED);
         // Cache the received packet for later use.
-        flow_data->recv_pkt = static_cast<char*>(rte_malloc_socket("recv_pkt", recv_mbufs[i]->data_len, 0, _socket_id));
+        flow_data->recv_pkt = new char[recv_mbufs[i]->data_len];
         flow_data->recv_pkt_size = recv_mbufs[i]->data_len;
         memcpy(flow_data->recv_pkt, rte_pktmbuf_mtod(recv_mbufs[i], char*), recv_mbufs[i]->data_len);
         _flow_table->insert_flow(src_oft_key, flow_data);

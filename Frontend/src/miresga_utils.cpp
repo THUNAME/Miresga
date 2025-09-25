@@ -10,7 +10,7 @@ MiresgaFlowData_t::MiresgaFlowData_t() {
 
 MiresgaFlowData_t::~MiresgaFlowData_t() {
     if (recv_pkt) {
-        rte_free(recv_pkt);
+        delete [] static_cast<char*>(recv_pkt);
         recv_pkt = nullptr;
     }
 }
@@ -31,7 +31,7 @@ RDMABuffer_t::RDMABuffer_t(size_t size, ibv_pd* pd) {
     }
     mr = ibv_reg_mr(pd, buffer, size, IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE);
     if (mr == nullptr) {
-        rte_free(buffer);
+        delete[] static_cast<char*>(buffer);
         throw std::runtime_error("Failed to register MR");
     }
 }
