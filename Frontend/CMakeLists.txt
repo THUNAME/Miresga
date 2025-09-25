@@ -10,6 +10,7 @@ find_package(Threads REQUIRED)
 find_package(Boost REQUIRED)
 find_package(PkgConfig REQUIRED)
 find_library(NUMA_LIBRARY numa REQUIRED)
+find_library(JEMALLOC_LIB jemalloc QUIET)
 pkg_check_modules(DPDK REQUIRED libdpdk)
 pkg_check_modules(RDMA REQUIRED libibverbs)
 
@@ -44,6 +45,11 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     ${NUMA_LIBRARY}
 )
 target_include_directories(${PROJECT_NAME} PRIVATE ${INCLUDE_DIRECTORIES})
+
+if (JEMALLOC_LIB)
+    message(STATUS "Using jemalloc")
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${JEMALLOC_LIB})
+endif()
 
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
     message(STATUS "Debug build")
