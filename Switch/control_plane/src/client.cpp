@@ -2,7 +2,10 @@
 
 static auto logger = spdlog::stdout_color_mt("client");
 
-uint64_t SwitchClient_t::_parse_value(const nlohmann::json& value_json) {
+uint64_t 
+SwitchClient_t::_parse_value(
+    const nlohmann::json& value_json
+) {
     if (value_json.is_number()) {
         return value_json.get<uint64_t>();
     } 
@@ -27,7 +30,10 @@ uint64_t SwitchClient_t::_parse_value(const nlohmann::json& value_json) {
     return value;
 }
 
-std::vector<KeyInput_t> SwitchClient_t::_parse_keys(const nlohmann::json& key_json) {
+std::vector<KeyInput_t> 
+SwitchClient_t::_parse_keys(
+    const nlohmann::json& key_json
+) {
     assert(key_json.is_array());
     std::vector<KeyInput_t> keys;
     for (auto& key_item: key_json) {
@@ -59,7 +65,10 @@ std::vector<KeyInput_t> SwitchClient_t::_parse_keys(const nlohmann::json& key_js
     return keys;
 }
 
-TableInfo_t* SwitchClient_t::_init_table_from_config(std::string config) {
+TableInfo_t* 
+SwitchClient_t::_init_table_from_config(
+    std::string config
+) {
     std::ifstream ifs(config);
     nlohmann::json config_json;
     ifs >> config_json;
@@ -124,7 +133,10 @@ TableInfo_t* SwitchClient_t::_init_table_from_config(std::string config) {
     return table;
 }
 
-void SwitchClient_t::_init_ports_from_config(std::string config_path) {
+void 
+SwitchClient_t::_init_ports_from_config(
+    std::string config_path
+) {
     std::ifstream ifs(config_path);
     nlohmann::json config_json;
     ifs >> config_json;
@@ -161,7 +173,9 @@ void SwitchClient_t::_init_ports_from_config(std::string config_path) {
     _switch_info->init_ports(port_info_list);
 }
 
-SwitchClient_t::SwitchClient_t(std::string config_dir) {
+SwitchClient_t::SwitchClient_t(
+    std::string config_dir
+) {
     _switch_info = SwitchInfo_t::get_instance();
     _init_ports_from_config(config_dir + "ports.json");
     _arp_table = _init_table_from_config(config_dir + "arp_table.json");
@@ -199,22 +213,31 @@ SwitchClient_t::~SwitchClient_t() {
     delete _bloom_filter_reg_2;
 }
 
-void SwitchClient_t::init_client(std::string config_dir) {
+void 
+SwitchClient_t::init_client(
+    std::string config_dir
+) {
     if (_instance == nullptr) {
         _instance = new SwitchClient_t(config_dir);
     }
 }
 
-SwitchClient_t* SwitchClient_t::get_instance() {
+SwitchClient_t* 
+SwitchClient_t::get_instance() {
     if (_instance == nullptr) {
         throw std::runtime_error("SwitchClient_t has not been initialized");
     }
     return _instance;
 }
 
-void SwitchClient_t::add_offload_entries(std::vector<MiresgaOFTEntry_t> entries) {
+void 
+SwitchClient_t::add_offload_entries(
+    std::vector<MiresgaOFTEntry_t> entries
+) {
     std::vector<std::vector<KeyInput_t>> key_field_values;
     std::vector<std::vector<DataInput_t>> data_field_values;
+    key_field_values.reserve(MAX_BATCH_SIZE);
+    data_field_values.reserve(MAX_BATCH_SIZE);
     std::string action_name = "SwitchIngress.oft_hit";
     for (const auto& entry : entries) {
         key_field_values.push_back({
@@ -228,8 +251,12 @@ void SwitchClient_t::add_offload_entries(std::vector<MiresgaOFTEntry_t> entries)
     _offload_connection_table->add_entry(key_field_values, action_name, data_field_values);
 }
 
-void SwitchClient_t::del_offload_entries(std::vector<MiresgaOFTKey_t> keys) {
+void 
+SwitchClient_t::del_offload_entries(
+    std::vector<MiresgaOFTKey_t> keys
+) {
     std::vector<std::vector<KeyInput_t>> key_field_values;
+    key_field_values.reserve(MAX_BATCH_SIZE);
     for (const auto& key : keys) {
         key_field_values.push_back({
             ExactKeyInput_t("ig_md.cip", key.client_ip),
@@ -239,7 +266,10 @@ void SwitchClient_t::del_offload_entries(std::vector<MiresgaOFTKey_t> keys) {
     _offload_connection_table->delete_entry(key_field_values);
 }
 
-void SwitchClient_t::start_updating(std::unordered_map<uint8_t, EgressPortEntry_t> new_crc_2_idx) {
+void 
+SwitchClient_t::start_updating(
+    std::unordered_map<uint8_t, EgressPortEntry_t> new_crc_2_idx
+) {
     SPDLOG_LOGGER_DEBUG(logger, "Start updating");
     TableInfo_t* new_tb;
     if (_new_tb_idx == 1) {
@@ -250,6 +280,8 @@ void SwitchClient_t::start_updating(std::unordered_map<uint8_t, EgressPortEntry_
     new_tb->clear_all_entry();
     std::vector<std::vector<KeyInput_t>> key_field_values;
     std::vector<std::vector<DataInput_t>> data_field_values;
+    key_field_values.reserve(256);
+    data_field_values.reserve(256);
     std::string action_name = "SwitchIngress.set_egress_port";
     for (const auto& [crc, entry] : new_crc_2_idx) {
         key_field_values.push_back({
@@ -267,7 +299,8 @@ void SwitchClient_t::start_updating(std::unordered_map<uint8_t, EgressPortEntry_
     _updating_flag_reg->write_reg(0, 1);
 }
 
-void SwitchClient_t::finish_updating() {
+void 
+SwitchClient_t::finish_updating() {
     _updating_flag_reg->write_reg(0, 0);
     _bloom_filter_reg_1->clear_reg();
     _bloom_filter_reg_2->clear_reg();

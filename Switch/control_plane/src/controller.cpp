@@ -2,7 +2,8 @@
 
 static auto logger = spdlog::stdout_color_mt("controller");
 
-std::string FrontendController_t::_serializing_rule_table() {
+std::string 
+FrontendController_t::_serializing_rule_table() {
     std::string msg;
     msg.append(1, static_cast<char>(OperationType_t::UPDATE_RULE));
     msg.append(1, static_cast<char>(_rule_table.size()));
@@ -16,7 +17,8 @@ std::string FrontendController_t::_serializing_rule_table() {
     return msg;
 }
 
-std::string FrontendController_t::_serializing_d_index_table() {
+std::string 
+FrontendController_t::_serializing_d_index_table() {
     std::string msg;
     msg.append(1, static_cast<char>(OperationType_t::UPDATE_D_INDEX));
     msg.append(1, static_cast<char>(_d_index_2_backend_server_info.size()));
@@ -28,14 +30,18 @@ std::string FrontendController_t::_serializing_d_index_table() {
     return msg;
 }
 
-std::string FrontendController_t::_serializing_v_info() {
+std::string 
+FrontendController_t::_serializing_v_info() {
     std::string msg;
     msg.append(1, static_cast<char>(OperationType_t::UPDATE_V_INFO));
     msg.append(reinterpret_cast<const char*>(&_virtual_server_info), sizeof(ServerInfo_t));
     return msg;
 }
 
-void FrontendController_t::_add_frontend(uint8_t id) {
+void 
+FrontendController_t::_add_frontend(
+    uint8_t id
+) {
     SPDLOG_LOGGER_INFO(logger, "Adding frontend: {}", id);
     _updating_id = id;
     size_t num_active_id = _active_ids.size();
@@ -67,8 +73,7 @@ void FrontendController_t::_add_frontend(uint8_t id) {
         _id_2_num_crcs[id] = 128;
         _id_2_num_crcs[other_id] = 128;
         _id_2_need_changed_crcs[other_id] = _id_2_sync_crcs[id][other_id];
-    }
-    else {
+    } else {
         size_t num_if_add_extra = 256 % (num_active_id + 1);
         size_t num_each_if_not_add_crcs = 256 / num_active_id;
         size_t extra = 256 % num_active_id;
@@ -154,7 +159,10 @@ void FrontendController_t::_add_frontend(uint8_t id) {
     _state = WAIT_RDMA_INFO;
 }
 
-void FrontendController_t::_remove_frontend(uint8_t id) {
+void 
+FrontendController_t::_remove_frontend(
+    uint8_t id
+) {
     SPDLOG_LOGGER_INFO(logger, "Removing frontend: {}", id);
     auto it = std::find(_active_ids.begin(), _active_ids.end(), id);
     if (it == _active_ids.end()) {
@@ -230,8 +238,7 @@ void FrontendController_t::_remove_frontend(uint8_t id) {
         _id_2_sync_crcs.erase(id);
         _client->start_updating(crc_2_egressportentry);
         _client->finish_updating();
-    }
-    else {
+    } else {
         _id_2_sync_crcs.clear();
         std::string stop_msg;
         uint8_t last_id = *_active_ids.begin();
@@ -257,7 +264,8 @@ void FrontendController_t::_remove_frontend(uint8_t id) {
     _id_2_egress_port.erase(id);
 }
 
-void FrontendController_t::_update_rdma_info() {
+void 
+FrontendController_t::_update_rdma_info() {
     assert(_state == WAIT_RDMA_INFO);
     SPDLOG_LOGGER_DEBUG(logger, "Updating RDMA info");
     std::string add_msg;
@@ -321,7 +329,8 @@ void FrontendController_t::_update_rdma_info() {
     _state = WAIT_RDMA_INIT;
 }
 
-void FrontendController_t::_main_loop() {
+void 
+FrontendController_t::_main_loop() {
     SPDLOG_LOGGER_DEBUG(logger, "Starting main loop");
     char recv_buffer[1600];
     while(!_exit_flag) {
@@ -530,17 +539,21 @@ void FrontendController_t::_main_loop() {
     SPDLOG_LOGGER_DEBUG(logger, "Exit main loop");
 }
 
-void FrontendController_t::start() {
+void 
+FrontendController_t::start() {
     _exit_flag = false;
     _controller_thread = std::thread(&FrontendController_t::_main_loop, this);
     _controller_thread.detach();
 }
 
-void FrontendController_t::stop() {
+void 
+FrontendController_t::stop() {
     _exit_flag = true;
 }
 
-FrontendController_t::FrontendController_t(std::string config_path) {
+FrontendController_t::FrontendController_t(
+    std::string config_path
+) {
     SPDLOG_LOGGER_INFO(logger, "Initializing Controller.");
     _timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK);
     if (_timer_fd == -1) {
@@ -669,13 +682,17 @@ FrontendController_t::~FrontendController_t() {
     _controller_thread.join();
 }
 
-void FrontendController_t::init_frontend_controller(std::string config_path) {
+void 
+FrontendController_t::init_frontend_controller(
+    std::string config_path
+) {
     if (_instance == nullptr) {
         _instance = new FrontendController_t(config_path);
     }
 }
 
-FrontendController_t* FrontendController_t::get_instance() {
+FrontendController_t* 
+FrontendController_t::get_instance() {
     if (_instance == nullptr) {
         SPDLOG_LOGGER_ERROR(logger, "FrontendController_t is not initialized");
         throw std::runtime_error("FrontendController_t is not initialized");
