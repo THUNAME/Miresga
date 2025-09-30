@@ -196,12 +196,10 @@ void ControllerClient::_main_loop()
                 if (recv_size == -1) {
                     throw std::runtime_error("Failed to read offload timerfd");
                 }
-                ssize_t send_size = _entry_manager->serialize_msg(_send_buffer);
-                if (send_size == -1) {
-                    throw std::runtime_error("Failed to serialize offload message");
-                }
+                std::string offload_msg = _entry_manager->serialize_msg();
+                size_t send_size = offload_msg.size();
                 if (send_size > 0) {
-                    if (_connector->send_message(_send_buffer, send_size) != MiresgaStatus_t::OK) {
+                    if (_connector->send_message(offload_msg.data(), send_size) != MiresgaStatus_t::OK) {
                         throw std::runtime_error("Failed to send offload message");
                     }
                 }

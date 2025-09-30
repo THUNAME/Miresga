@@ -232,7 +232,7 @@ __attribute__((always_inline)) void RDMAManager::add_flow_data(MiresgaOFTEntry_t
     char ip_str[INET_ADDRSTRLEN];
     SPDLOG_LOGGER_DEBUG(logger, "Adding flow data: Key:({}:{} {:02x}), flow_state: {}, d_index: {}",
                         inet_ntop(AF_INET, &add_data->key.client_ip, ip_str, INET_ADDRSTRLEN), 
-                        add_data->key.client_port, add_data->key.crc, add_data->key.crc,
+                        add_data->key.client_port, add_data->key.crc, 
                         add_data->data.flow_state, add_data->data.d_index);
     #endif
     if (unlikely(_id_2_engines.empty())) {
@@ -241,6 +241,10 @@ __attribute__((always_inline)) void RDMAManager::add_flow_data(MiresgaOFTEntry_t
     }
     uint8_t crc = add_data->key.crc;
     uint8_t id = _crc_2_id[crc];
+    if (unlikely(_id_2_engines.find(id) == _id_2_engines.end())) {
+        SPDLOG_LOGGER_ERROR(logger, "No RDMA engine found for CRC: {:02x}", crc);
+        throw std::runtime_error("No RDMA engine for given CRC");
+    }
     _id_2_engines[id].first->add_flow_data(add_data);
 }
 
@@ -269,6 +273,10 @@ __attribute__((always_inline)) void RDMAManager::del_flow_data(MiresgaOFTKey_t* 
     }
     uint8_t crc = del_data->crc;
     uint8_t id = _crc_2_id[crc];
+    if (unlikely(_id_2_engines.find(id) == _id_2_engines.end())) {
+        SPDLOG_LOGGER_ERROR(logger, "No RDMA engine found for CRC: {:02x}", crc);
+        throw std::runtime_error("No RDMA engine for given CRC");
+    }
     _id_2_engines[id].first->del_flow_data(del_data);
 }
 

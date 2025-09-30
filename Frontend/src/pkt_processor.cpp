@@ -36,14 +36,17 @@ static const uint8_t option_char[] = {
     0x03, 0x03, 0x09
 };
 
-PktProcessor::PktProcessor(int queue_id, int socket_id) 
-    : _exit_flag(false), _queue_id(queue_id), _socket_id(socket_id),
-      _dpdk_manager(DPDKManager::get_instance()),
-      _rule_manager(RuleManager::get_instance()),
-      _rdma_manager(RDMAManager::get_instance()),
-      _entry_manager(EntryManager::get_instance()),
-      _flow_table(FlowTable::get_instance())
-{
+PktProcessor::PktProcessor(
+    int queue_id, 
+    int socket_id
+) : _exit_flag(false), 
+    _queue_id(queue_id), 
+    _socket_id(socket_id),
+    _dpdk_manager(DPDKManager::get_instance()),
+    _rule_manager(RuleManager::get_instance()),
+    _rdma_manager(RDMAManager::get_instance()),
+    _entry_manager(EntryManager::get_instance()),
+    _flow_table(FlowTable::get_instance()) {
     SPDLOG_LOGGER_INFO(logger, "PktProcessor created on queue {} and socket {}", queue_id, socket_id);
     _add_token = _entry_manager->get_add_queue_token();
     _del_token = _entry_manager->get_del_queue_token();
@@ -53,7 +56,12 @@ PktProcessor::~PktProcessor() {
     stop();
 }
 
-__attribute__((always_inline)) uint8_t PktProcessor::_calc_crc8(uint32_t ip, uint16_t port) {
+__attribute__((always_inline)) 
+uint8_t 
+PktProcessor::_calc_crc8(
+    uint32_t ip, 
+    uint16_t port
+) {
     uint8_t crc = 0;
     crc = crc8_table[crc ^ (ip & 0xff)];
     crc = crc8_table[crc ^ ((ip >> 8) & 0xff)];
@@ -64,7 +72,11 @@ __attribute__((always_inline)) uint8_t PktProcessor::_calc_crc8(uint32_t ip, uin
     return crc;
 }
 
-__attribute__((always_inline)) std::string PktProcessor::_parse_payload(std::string payload) {
+__attribute__((always_inline)) 
+std::string 
+PktProcessor::_parse_payload(
+    std::string payload
+) {
     // We provide a simple parsing function here. Users can modify it to fit their own payload format.
     // We assume we use the url path in HTTP GET request as the payload.
     size_t pos1 = payload.find("/");
@@ -77,7 +89,12 @@ __attribute__((always_inline)) std::string PktProcessor::_parse_payload(std::str
     return parsed_payload;
 }
 
-__attribute__((always_inline)) MiresgaStatus_t PktProcessor::_send_pkts(rte_mbuf** mbuf, size_t nb_pkts) {
+__attribute__((always_inline)) 
+MiresgaStatus_t 
+PktProcessor::_send_pkts(
+    rte_mbuf** mbuf, 
+    size_t nb_pkts
+) {
     uint16_t nb_tx = rte_eth_tx_burst(_dpdk_manager->port_id, _queue_id, mbuf, nb_pkts);
     MiresgaStatus_t status = MiresgaStatus_t::OK;
     if (unlikely(nb_tx != nb_pkts)) {
@@ -89,7 +106,13 @@ __attribute__((always_inline)) MiresgaStatus_t PktProcessor::_send_pkts(rte_mbuf
     return status;
 }
 
-__attribute__((always_inline)) void PktProcessor::_get_inbound_normal_pkt(rte_mbuf* recv_mbuf, uint8_t d_index, rte_mbuf* send_mbuf) {
+__attribute__((always_inline)) 
+void 
+PktProcessor::_get_inbound_normal_pkt(
+    rte_mbuf* recv_mbuf, 
+    uint8_t d_index, 
+    rte_mbuf* send_mbuf) 
+{
     void* recv_pkt_data = rte_pktmbuf_mtod(recv_mbuf, void*);
     rte_ether_hdr* send_eth_hdr = rte_pktmbuf_mtod(send_mbuf, rte_ether_hdr*);
     rte_ipv4_hdr* send_ip_hdr = (rte_ipv4_hdr*)(send_eth_hdr + 1);
@@ -113,7 +136,12 @@ __attribute__((always_inline)) void PktProcessor::_get_inbound_normal_pkt(rte_mb
     send_mbuf->pkt_len = send_mbuf->data_len;
 }
 
-__attribute__((always_inline)) void PktProcessor::_get_outbound_normal_pkt(rte_mbuf* recv_mbuf, rte_mbuf* send_mbuf) {
+__attribute__((always_inline)) 
+void 
+PktProcessor::_get_outbound_normal_pkt(
+    rte_mbuf* recv_mbuf, 
+    rte_mbuf* send_mbuf
+) {
     void* recv_pkt_data = rte_pktmbuf_mtod(recv_mbuf, void*);
     rte_ether_hdr* send_eth_hdr = rte_pktmbuf_mtod(send_mbuf, rte_ether_hdr*);
     rte_ipv4_hdr* send_ip_hdr = (rte_ipv4_hdr*)(send_eth_hdr + 1);
@@ -137,7 +165,13 @@ __attribute__((always_inline)) void PktProcessor::_get_outbound_normal_pkt(rte_m
     send_mbuf->pkt_len = send_mbuf->data_len;
 }
 
-__attribute__((always_inline)) void PktProcessor::_get_inbound_syn_pkt(rte_mbuf* recv_mbuf, uint8_t d_index, rte_mbuf* send_mbuf) {
+__attribute__((always_inline)) 
+void 
+PktProcessor::_get_inbound_syn_pkt(
+    rte_mbuf* recv_mbuf, 
+    uint8_t d_index, 
+    rte_mbuf* send_mbuf
+) {
     void* recv_pkt_data = rte_pktmbuf_mtod(recv_mbuf, void*);
     rte_ether_hdr* send_eth_hdr = rte_pktmbuf_mtod(send_mbuf, rte_ether_hdr*);
     rte_ipv4_hdr* send_ip_hdr = (rte_ipv4_hdr*)(send_eth_hdr + 1);
@@ -168,7 +202,13 @@ __attribute__((always_inline)) void PktProcessor::_get_inbound_syn_pkt(rte_mbuf*
     send_mbuf->pkt_len = send_mbuf->data_len;
 }
 
-__attribute__((always_inline)) void PktProcessor::_get_inbound_rst_pkt(rte_mbuf* recv_mbuf, uint8_t d_index, rte_mbuf* send_mbuf) {
+__attribute__((always_inline)) 
+void 
+PktProcessor::_get_inbound_rst_pkt(
+    rte_mbuf* recv_mbuf, 
+    uint8_t d_index, 
+    rte_mbuf* send_mbuf
+) {
     void* recv_pkt_data = rte_pktmbuf_mtod(recv_mbuf, void*);
     rte_ether_hdr* send_eth_hdr = rte_pktmbuf_mtod(send_mbuf, rte_ether_hdr*);
     rte_ipv4_hdr* send_ip_hdr = (rte_ipv4_hdr*)(send_eth_hdr + 1);
@@ -196,7 +236,12 @@ __attribute__((always_inline)) void PktProcessor::_get_inbound_rst_pkt(rte_mbuf*
     send_mbuf->pkt_len = send_mbuf->data_len;
 }
 
-__attribute__((always_inline)) void PktProcessor::_get_outbound_rst_pkt(rte_mbuf* recv_mbuf, rte_mbuf* send_mbuf) {
+__attribute__((always_inline)) 
+void 
+PktProcessor::_get_outbound_rst_pkt(
+    rte_mbuf* recv_mbuf, 
+    rte_mbuf* send_mbuf
+) {
     void* recv_pkt_data = rte_pktmbuf_mtod(recv_mbuf, void*);
     rte_ether_hdr* send_eth_hdr = rte_pktmbuf_mtod(send_mbuf, rte_ether_hdr*);
     rte_ipv4_hdr* send_ip_hdr = (rte_ipv4_hdr*)(send_eth_hdr + 1);
@@ -232,8 +277,13 @@ __attribute__((always_inline)) void PktProcessor::_get_outbound_rst_pkt(rte_mbuf
     send_mbuf->pkt_len = send_mbuf->data_len;
 }
 
-__attribute__((always_inline)) void PktProcessor::_get_cached_pkt(char* cached_pkt, uint16_t cached_pkt_len, 
-                                   uint8_t d_index, rte_mbuf* send_mbuf) {
+__attribute__((always_inline)) 
+void PktProcessor::_get_cached_pkt(
+    char* cached_pkt, 
+    uint16_t cached_pkt_len, 
+    uint8_t d_index, 
+    rte_mbuf* send_mbuf
+) {
     rte_ether_hdr* send_eth_hdr = rte_pktmbuf_mtod(send_mbuf, rte_ether_hdr*);
     rte_ipv4_hdr* send_ip_hdr = (rte_ipv4_hdr*)(send_eth_hdr + 1);
     rte_tcp_hdr* send_tcp_hdr = (rte_tcp_hdr*)(send_ip_hdr + 1);
@@ -256,7 +306,11 @@ __attribute__((always_inline)) void PktProcessor::_get_cached_pkt(char* cached_p
     send_mbuf->pkt_len = send_mbuf->data_len;
 }
 
-void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
+void 
+PktProcessor::_process_pkts(
+    rte_mbuf** recv_mbufs, 
+    uint16_t nb_pkts
+) {
     rte_mbuf* send_mbufs[(nb_pkts << 1)];
     size_t num_send_pkts = 0;
     if (unlikely(rte_pktmbuf_alloc_bulk(_dpdk_manager->mbuf_pool, send_mbufs, nb_pkts << 1) != 0)) {
@@ -373,7 +427,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                             flow_data->entry_data.data.flow_state = rule->offload_flag == 1 ? static_cast<uint8_t>(FlowState_t::OFFLOAD) : static_cast<uint8_t>(FlowState_t::ESTABLISHED);
                             flow_data->state = FlowState_t::BACKEND_SYN;
                             if (flow_data->recv_pkt != nullptr) {
-                                delete [] static_cast<char*>(flow_data->recv_pkt);
+                                delete[] static_cast<char*>(flow_data->recv_pkt);
                             }
                             // Cache the received packet for later use.
                             flow_data->recv_pkt = new char[recv_mbufs[i]->data_len];
@@ -451,21 +505,28 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                 continue;
             }
             if(unlikely(tcp_hdr->tcp_flags & RTE_TCP_FIN_FLAG)) {
-                SPDLOG_LOGGER_DEBUG(logger, "Outbound FIN packet, replying with RST. Flow state: {}", static_cast<int>(flow_data->state));
-                // Send RST to the client.
-                _get_outbound_rst_pkt(recv_mbufs[i], send_mbufs[num_send_pkts]);
-                num_send_pkts++;
-                // Send RST to the backend server.
-                _get_inbound_rst_pkt(recv_mbufs[i], flow_data->entry_data.data.d_index, send_mbufs[num_send_pkts + 1]);
-                num_send_pkts++;
-                if (flow_data->state == FlowState_t::OFFLOAD) {
-                    SPDLOG_LOGGER_DEBUG(logger, "Removing entry from offload table");
-                    // Remove the entry from the offload table.
-                    _entry_manager->del_entry(*_del_token, src_oft_key);
+                if(payload_len == 0) { 
+                    SPDLOG_LOGGER_DEBUG(logger, "Outbound FIN packet, replying with RST. Flow state: {}", static_cast<int>(flow_data->state));
+                    // Send RST to the client.
+                    _get_outbound_rst_pkt(recv_mbufs[i], send_mbufs[num_send_pkts]);
+                    num_send_pkts++;
+                    // Send RST to the backend server.
+                    _get_inbound_rst_pkt(recv_mbufs[i], flow_data->entry_data.data.d_index, send_mbufs[num_send_pkts]);
+                    num_send_pkts++;
+                    if (flow_data->state == FlowState_t::OFFLOAD) {
+                        SPDLOG_LOGGER_DEBUG(logger, "Removing entry from offload table");
+                        // Remove the entry from the offload table.
+                        _entry_manager->del_entry(*_del_token, src_oft_key);
+                    }
+                    if (flow_data->state >= FlowState_t::ESTABLISHED)
+                        _rdma_manager->del_flow_data(&src_oft_key);
+                    _flow_table->remove_flow(src_oft_key);
+                } else {
+                    SPDLOG_LOGGER_DEBUG(logger, "Outbound FIN packet with payload, sending to client. Flow state: {}", static_cast<int>(flow_data->state));
+                    // Just forward the packet.
+                    _get_outbound_normal_pkt(recv_mbufs[i], send_mbufs[num_send_pkts]);
+                    num_send_pkts++;
                 }
-                if (flow_data->state >= FlowState_t::ESTABLISHED)
-                    _rdma_manager->del_flow_data(&src_oft_key);
-                _flow_table->remove_flow(src_oft_key);
                 continue;
             }
             switch(flow_data->state) {
@@ -487,6 +548,7 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
                     // Send the cached packet to the backend server.
                     _get_cached_pkt(static_cast<char*>(flow_data->recv_pkt), flow_data->recv_pkt_size, flow_data->entry_data.data.d_index, send_mbufs[num_send_pkts]);
                     ++num_send_pkts;
+                    _rdma_manager->add_flow_data(&flow_data->entry_data);
                     break;
                 }
                 case FlowState_t::OFFLOAD:
@@ -538,7 +600,8 @@ void PktProcessor::_process_pkts(rte_mbuf** recv_mbufs, uint16_t nb_pkts) {
     }
 }
 
-void PktProcessor::_main_loop() {
+void 
+PktProcessor::_main_loop() {
     SPDLOG_LOGGER_DEBUG(logger, "Entering main loop");
     rte_mbuf* recv_mbufs[_dpdk_manager->dpdk_config->burst_size];
     while(!_exit_flag) {
@@ -556,7 +619,10 @@ void PktProcessor::_main_loop() {
     SPDLOG_LOGGER_DEBUG(logger, "Exiting main loop");
 }
 
-int PktProcessor::_worker_fun_wrapper(void* arg) {
+int 
+PktProcessor::_worker_fun_wrapper(
+    void* arg
+) {
     PktProcessor* processor = static_cast<PktProcessor*>(arg);
     processor->_main_loop();
     return 0;

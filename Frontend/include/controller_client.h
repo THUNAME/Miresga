@@ -31,7 +31,6 @@ private:
     std::thread _client_thread;
     bool _exit_flag;
     char _recv_buffer[ETH_FRAME_LEN];
-    char _send_buffer[ETH_FRAME_LEN];
     int _epoll_fd;
     int _offload_timerfd;
     int _sync_timerfd;

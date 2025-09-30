@@ -10,6 +10,7 @@
 #include "spdlog/sinks/stdout_color_sinks.h"
 
 #include <vector>
+#include <string>
 #include <arpa/inet.h>
 
 typedef moodycamel::ConcurrentQueue<MiresgaOFTEntry_t> EntryQueue;
@@ -36,9 +37,11 @@ public:
     static void destroy_instance();
     void add_entry(moodycamel::ProducerToken& token, MiresgaOFTEntry_t entry);
     void del_entry(moodycamel::ProducerToken& token, MiresgaOFTKey_t key);
+    void add_entries(moodycamel::ProducerToken& token, std::vector<MiresgaOFTEntry_t>& entries);
+    void del_entries(moodycamel::ProducerToken& token, std::vector<MiresgaOFTKey_t>& keys);
     moodycamel::ProducerToken* get_add_queue_token();
     moodycamel::ProducerToken* get_del_queue_token();
-    ssize_t serialize_msg(char* send_buffer);
+    std::string serialize_msg();
 };
 
 #endif
