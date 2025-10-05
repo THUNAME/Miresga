@@ -1,171 +1,171 @@
 {
+    "table_name": "SwitchIngress.arp_forward_table",
     "key_names": [
         {
-            "match_type": "exact", 
-            "name": "hdr.arp.target_proto_addr"
+            "name": "hdr.arp.target_proto_addr",
+            "match_type": "exact"
         }
-    ], 
+    ],
+    "actions": [
+        {
+            "action_name": "SwitchIngress.forward_arp",
+            "data_names": [
+                "dst_port"
+            ]
+        }
+    ],
     "initial_entries": [
         {
             "keys": [
                 {
-                    "match_type": "exact", 
-                    "name": "hdr.arp.target_proto_addr", 
+                    "name": "hdr.arp.target_proto_addr",
                     "value": {
-                        "raw": "10.0.1.254", 
+                        "raw": "10.0.1.254",
                         "type": "ipv4"
-                    }
+                    },
+                    "match_type": "exact"
                 }
-            ], 
+            ],
+            "action_name": "SwitchIngress.forward_arp",
             "datas": [
                 {
-                    "name": "dst_port", 
+                    "name": "dst_port",
                     "value": 192
                 }
-            ], 
-            "action_name": "SwitchIngress.forward_arp"
-        }, 
+            ]
+        },
         {
             "keys": [
                 {
-                    "match_type": "exact", 
-                    "name": "hdr.arp.target_proto_addr", 
+                    "name": "hdr.arp.target_proto_addr",
                     "value": {
-                        "raw": "10.0.2.2", 
+                        "raw": "10.0.2.2",
                         "type": "ipv4"
-                    }
+                    },
+                    "match_type": "exact"
                 }
-            ], 
+            ],
+            "action_name": "SwitchIngress.forward_arp",
             "datas": [
                 {
-                    "name": "dst_port", 
-                    "value": 56
-                }
-            ], 
-            "action_name": "SwitchIngress.forward_arp"
-        }, 
-        {
-            "keys": [
-                {
-                    "match_type": "exact", 
-                    "name": "hdr.arp.target_proto_addr", 
-                    "value": {
-                        "raw": "10.0.2.3", 
-                        "type": "ipv4"
-                    }
-                }
-            ], 
-            "datas": [
-                {
-                    "name": "dst_port", 
+                    "name": "dst_port",
                     "value": 16
                 }
-            ], 
-            "action_name": "SwitchIngress.forward_arp"
-        }, 
+            ]
+        },
         {
             "keys": [
                 {
-                    "match_type": "exact", 
-                    "name": "hdr.arp.target_proto_addr", 
+                    "name": "hdr.arp.target_proto_addr",
                     "value": {
-                        "raw": "10.0.0.2", 
+                        "raw": "10.0.2.3",
                         "type": "ipv4"
-                    }
+                    },
+                    "match_type": "exact"
                 }
-            ], 
+            ],
+            "action_name": "SwitchIngress.forward_arp",
             "datas": [
                 {
-                    "name": "dst_port", 
-                    "value": 52
-                }
-            ], 
-            "action_name": "SwitchIngress.forward_arp"
-        }, 
-        {
-            "keys": [
-                {
-                    "match_type": "exact", 
-                    "name": "hdr.arp.target_proto_addr", 
-                    "value": {
-                        "raw": "10.0.0.3", 
-                        "type": "ipv4"
-                    }
-                }
-            ], 
-            "datas": [
-                {
-                    "name": "dst_port", 
+                    "name": "dst_port",
                     "value": 0
                 }
-            ], 
-            "action_name": "SwitchIngress.forward_arp"
-        }, 
+            ]
+        },
         {
             "keys": [
                 {
-                    "match_type": "exact", 
-                    "name": "hdr.arp.target_proto_addr", 
+                    "name": "hdr.arp.target_proto_addr",
                     "value": {
-                        "raw": "10.0.1.2", 
+                        "raw": "10.0.0.2",
                         "type": "ipv4"
-                    }
+                    },
+                    "match_type": "exact"
                 }
-            ], 
+            ],
+            "action_name": "SwitchIngress.forward_arp",
             "datas": [
                 {
-                    "name": "dst_port", 
-                    "value": 24
+                    "name": "dst_port",
+                    "value": 56
                 }
-            ], 
-            "action_name": "SwitchIngress.forward_arp"
-        }, 
+            ]
+        },
         {
             "keys": [
                 {
-                    "match_type": "exact", 
-                    "name": "hdr.arp.target_proto_addr", 
+                    "name": "hdr.arp.target_proto_addr",
                     "value": {
-                        "raw": "10.0.1.3", 
+                        "raw": "10.0.0.3",
                         "type": "ipv4"
-                    }
+                    },
+                    "match_type": "exact"
                 }
-            ], 
+            ],
+            "action_name": "SwitchIngress.forward_arp",
             "datas": [
                 {
-                    "name": "dst_port", 
+                    "name": "dst_port",
                     "value": 8
                 }
-            ], 
-            "action_name": "SwitchIngress.forward_arp"
-        }, 
+            ]
+        },
         {
             "keys": [
                 {
-                    "match_type": "exact", 
-                    "name": "hdr.arp.target_proto_addr", 
+                    "name": "hdr.arp.target_proto_addr",
                     "value": {
-                        "raw": "10.0.1.4", 
+                        "raw": "10.0.1.2",
                         "type": "ipv4"
-                    }
+                    },
+                    "match_type": "exact"
                 }
-            ], 
+            ],
+            "action_name": "SwitchIngress.forward_arp",
             "datas": [
                 {
-                    "name": "dst_port", 
-                    "value": 60
+                    "name": "dst_port",
+                    "value": 40
                 }
-            ], 
-            "action_name": "SwitchIngress.forward_arp"
-        }
-    ], 
-    "table_name": "SwitchIngress.arp_forward_table", 
-    "actions": [
+            ]
+        },
         {
-            "data_names": [
-                "dst_port"
-            ], 
-            "action_name": "SwitchIngress.forward_arp"
+            "keys": [
+                {
+                    "name": "hdr.arp.target_proto_addr",
+                    "value": {
+                        "raw": "10.0.1.3",
+                        "type": "ipv4"
+                    },
+                    "match_type": "exact"
+                }
+            ],
+            "action_name": "SwitchIngress.forward_arp",
+            "datas": [
+                {
+                    "name": "dst_port",
+                    "value": 32
+                }
+            ]
+        },
+        {
+            "keys": [
+                {
+                    "name": "hdr.arp.target_proto_addr",
+                    "value": {
+                        "raw": "10.0.1.4",
+                        "type": "ipv4"
+                    },
+                    "match_type": "exact"
+                }
+            ],
+            "action_name": "SwitchIngress.forward_arp",
+            "datas": [
+                {
+                    "name": "dst_port",
+                    "value": 24
+                }
+            ]
         }
     ]
 }

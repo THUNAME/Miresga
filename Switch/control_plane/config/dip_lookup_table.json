@@ -1,59 +1,59 @@
 {
+    "table_name": "SwitchIngress.dip_lookup_table",
     "key_names": [
         {
-            "match_type": "exact", 
-            "name": "hdr.ipv4.src_addr"
-        }, 
+            "name": "hdr.ipv4.src_addr",
+            "match_type": "exact"
+        },
         {
-            "match_type": "exact", 
-            "name": "hdr.tcp.src_port"
+            "name": "hdr.tcp.src_port",
+            "match_type": "exact"
         }
-    ], 
+    ],
+    "actions": [
+        {
+            "action_name": "SwitchIngress.dip_hit",
+            "data_names": []
+        }
+    ],
     "initial_entries": [
         {
             "keys": [
                 {
-                    "match_type": "exact", 
-                    "name": "hdr.ipv4.src_addr", 
+                    "name": "hdr.ipv4.src_addr",
                     "value": {
-                        "raw": "10.0.2.2", 
+                        "raw": "10.0.2.2",
                         "type": "ipv4"
-                    }
-                }, 
+                    },
+                    "match_type": "exact"
+                },
                 {
-                    "match_type": "exact", 
-                    "name": "hdr.tcp.src_port", 
-                    "value": 80
+                    "name": "hdr.tcp.src_port",
+                    "value": 80,
+                    "match_type": "exact"
                 }
-            ], 
-            "datas": [], 
-            "action_name": "SwitchIngress.dip_hit"
-        }, 
+            ],
+            "action_name": "SwitchIngress.dip_hit",
+            "datas": []
+        },
         {
             "keys": [
                 {
-                    "match_type": "exact", 
-                    "name": "hdr.ipv4.src_addr", 
+                    "name": "hdr.ipv4.src_addr",
                     "value": {
-                        "raw": "10.0.2.3", 
+                        "raw": "10.0.2.3",
                         "type": "ipv4"
-                    }
-                }, 
+                    },
+                    "match_type": "exact"
+                },
                 {
-                    "match_type": "exact", 
-                    "name": "hdr.tcp.src_port", 
-                    "value": 80
+                    "name": "hdr.tcp.src_port",
+                    "value": 80,
+                    "match_type": "exact"
                 }
-            ], 
-            "datas": [], 
-            "action_name": "SwitchIngress.dip_hit"
-        }
-    ], 
-    "table_name": "SwitchIngress.dip_lookup_table", 
-    "actions": [
-        {
-            "data_names": [], 
-            "action_name": "SwitchIngress.dip_hit"
+            ],
+            "action_name": "SwitchIngress.dip_hit",
+            "datas": []
         }
     ]
 }

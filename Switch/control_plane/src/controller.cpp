@@ -72,7 +72,6 @@ FrontendController_t::_add_frontend(
         }
         _id_2_num_crcs[id] = 128;
         _id_2_num_crcs[other_id] = 128;
-        _id_2_need_changed_crcs[other_id] = _id_2_sync_crcs[id][other_id];
     } else {
         size_t num_if_add_extra = 256 % (num_active_id + 1);
         size_t num_each_if_not_add_crcs = 256 / num_active_id;
@@ -121,7 +120,6 @@ FrontendController_t::_add_frontend(
                                                              _id_2_sync_crcs[other_id][sync_id].begin() + need_change_size);
                 }
             }
-            _id_2_need_changed_crcs[other_id] = _id_2_sync_crcs[id][other_id];
             _id_2_num_crcs[other_id] -= need_remove_size;
             _id_2_num_crcs[id] += need_remove_size;
         }
@@ -145,17 +143,7 @@ FrontendController_t::_add_frontend(
         }
         _wait_rdma_info_ids.insert(id);
     }
-    for (auto [active_id, id_2_crc_map] : _id_2_sync_crcs) {
-        SPDLOG_LOGGER_DEBUG(logger, "{}: ", active_id);
-        for (auto [other_id, crcs] : id_2_crc_map) {
-            SPDLOG_LOGGER_DEBUG(logger, "{}: {}", other_id, fmt::join(crcs, ","));
-            for (auto crc : crcs) {
-                crc_2_egressportentry[crc] = _id_2_egress_port[active_id];
-            }
-        }
-    }
     SPDLOG_LOGGER_DEBUG(logger, "Sending start updating message to client");
-    _client->start_updating(crc_2_egressportentry);
     _state = WAIT_RDMA_INFO;
 }
 
@@ -259,7 +247,6 @@ FrontendController_t::_remove_frontend(
         }
     }
     _id_2_num_crcs.erase(id);
-    _id_2_need_changed_crcs.erase(id);
     _id_2_rdma_info.erase(id);
     _id_2_egress_port.erase(id);
 }
@@ -326,6 +313,17 @@ FrontendController_t::_update_rdma_info() {
             throw std::runtime_error("Failed to send update rdma info message");
         }
     }
+    std::unordered_map<uint8_t, EgressPortEntry_t> crc_2_egressportentry;
+    for (auto [active_id, id_2_crc_map] : _id_2_sync_crcs) {
+        SPDLOG_LOGGER_DEBUG(logger, "{}: ", active_id);
+        for (auto [other_id, crcs] : id_2_crc_map) {
+            SPDLOG_LOGGER_DEBUG(logger, "{}: {}", other_id, fmt::join(crcs, ","));
+            for (auto crc : crcs) {
+                crc_2_egressportentry[crc] = _id_2_egress_port[active_id];
+            }
+        }
+    }
+    _client->start_updating(crc_2_egressportentry);
     _state = WAIT_RDMA_INIT;
 }
 
@@ -385,11 +383,8 @@ FrontendController_t::_main_loop() {
                     SPDLOG_LOGGER_ERROR(logger, "Failed to read timerfd");
                     throw std::runtime_error("Failed to read timerfd");
                 }
-                if (_state == WAIT_SYNC) {
-                    _state = NORMAL;
-                    SPDLOG_LOGGER_DEBUG(logger, "Finishing updating");
-                    _client->finish_updating();
-                }
+                SPDLOG_LOGGER_DEBUG(logger, "Finishing updating");
+                _client->finish_updating();
             }
             else {
                 int conn_fd = events[n].data.fd;
@@ -480,17 +475,6 @@ FrontendController_t::_main_loop() {
                                             SPDLOG_LOGGER_ERROR(logger, "Failed to send rdma start message to {}: {}", id, _updating_id);
                                             throw std::runtime_error("Failed to send rdma start message");
                                         }
-                                        std::string sync_msg = "";
-                                        SPDLOG_LOGGER_DEBUG(logger, "Sending sync old data message to {}: {}", id, _updating_id);
-                                        sync_msg.append(1, static_cast<char>(SYNC_OLD_DATA));
-                                        sync_msg.append(1, static_cast<char>(_updating_id));
-                                        sync_msg.append(1, static_cast<char>(_id_2_need_changed_crcs[id].size()));
-                                        sync_msg.append(reinterpret_cast<const char*>(_id_2_need_changed_crcs[id].data()), _id_2_need_changed_crcs[id].size());
-                                        SPDLOG_LOGGER_DEBUG(logger, "Sync CRCs: {}", fmt::join(_id_2_need_changed_crcs[id], ","));
-                                        if (send(other_fd, sync_msg.c_str(), sync_msg.size(), 0) < 0) {
-                                            SPDLOG_LOGGER_ERROR(logger, "Failed to send sync old data message to {}: {}", id, _updating_id);
-                                            throw std::runtime_error("Failed to send sync old data message");
-                                        }
                                     }
                                     SPDLOG_LOGGER_DEBUG(logger, "Sending rdma start message to {}", _updating_id);
                                     int added_fd = _id_2_socket_fd[_updating_id];
@@ -498,8 +482,7 @@ FrontendController_t::_main_loop() {
                                         SPDLOG_LOGGER_ERROR(logger, "Failed to send rdma start message to {}: {}", _updating_id, _updating_id);
                                         throw std::runtime_error("Failed to send rdma start message");
                                     }
-                                    _state = WAIT_SYNC;
-                                    _id_2_need_changed_crcs.clear();
+                                    _state = WAIT_RDMA_SYNC;
                                     SPDLOG_LOGGER_DEBUG(logger, "Setting timerfd");
                                     itimerspec new_value;
                                     new_value.it_value.tv_sec = 0;

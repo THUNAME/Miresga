@@ -115,10 +115,10 @@ SwitchInfo_t::add_batched_entry(
     for(int i = 0; i < size; i++) {
         status = bf_rt_table_entry_add(table_hdl, _session, _dev_tgt,
                                        key_hdls[i], data_hdls[i]);
-        if (__glibc_unlikely(status != BF_SUCCESS)) {
-            SPDLOG_LOGGER_ERROR(logger, "Failed to add entry, {}", bf_err_str(status));
-            throw std::runtime_error("Failed to add entry");
-        }
+        // if (__glibc_unlikely(status != BF_SUCCESS)) {
+        //     SPDLOG_LOGGER_ERROR(logger, "Failed to add entry, {}", bf_err_str(status));
+        //     throw std::runtime_error("Failed to add entry");
+        // }
     }
     status = bf_rt_end_batch(_session, false);
     if (__glibc_unlikely(status != BF_SUCCESS)) {
@@ -143,10 +143,10 @@ SwitchInfo_t::delete_batched_entry(
     for (size_t i = 0; i < size; i++) {
         status = bf_rt_table_entry_del(table_hdl, _session, _dev_tgt,
                                        key_hdls[i]);
-        if (__glibc_unlikely(status != BF_SUCCESS)) {
-            SPDLOG_LOGGER_ERROR(logger, "Failed to delete entry");
-            throw std::runtime_error("Failed to delete entry");
-        }
+        // if (__glibc_unlikely(status != BF_SUCCESS)) {
+        //     SPDLOG_LOGGER_ERROR(logger, "Failed to delete entry");
+        //     throw std::runtime_error("Failed to delete entry");
+        // }
     }
     status = bf_rt_end_batch(_session, false);
     if (__glibc_unlikely(status != BF_SUCCESS)) {

@@ -1,19 +1,19 @@
 {
+    "table_name": "SwitchIngress.lb_index_to_egress_port_table_1",
     "key_names": [
         {
-            "match_type": "exact", 
-            "name": "ig_md.crc_hash_res"
+            "name": "ig_md.crc_hash_res",
+            "match_type": "exact"
         }
-    ], 
-    "table_name": "SwitchIngress.lb_index_to_egress_port_table_1", 
+    ],
     "actions": [
         {
+            "action_name": "SwitchIngress.set_egress_port",
             "data_names": [
-                "src_mac", 
-                "dst_mac", 
+                "src_mac",
+                "dst_mac",
                 "dst_port"
-            ], 
-            "action_name": "SwitchIngress.set_egress_port"
+            ]
         }
     ]
 }

@@ -34,7 +34,7 @@ enum ControllerState_t {
     WAIT_INIT_VINFO,
     WAIT_RDMA_INFO,
     WAIT_RDMA_INIT,
-    WAIT_SYNC
+    WAIT_RDMA_SYNC
 };
 
 enum OperationType_t {
@@ -44,7 +44,6 @@ enum OperationType_t {
     UPDATE_V_INFO,
     OFFLOAD_ENTRIES,
     INIT_RDMA_ENGINE,
-    SYNC_OLD_DATA,
     UPDATE_RDMA_INFO,
     RDMA_START,
     RDMA_STOP
@@ -87,7 +86,6 @@ private:
     std::unordered_map<int, uint8_t> _socket_fd_2_id;
     std::unordered_map<uint8_t, std::unordered_map<uint8_t, RDMAInfo_t>> _id_2_rdma_info;
     std::unordered_map<uint8_t, size_t> _id_2_num_crcs;
-    std::unordered_map<uint8_t, std::vector<uint8_t>> _id_2_need_changed_crcs;
     std::unordered_map<uint8_t, std::unordered_map<uint8_t, std::vector<uint8_t>>> _id_2_sync_crcs;
     std::unordered_map<uint8_t, ServerInfo_t> _d_index_2_backend_server_info;
     std::vector<uint8_t> _active_ids;
