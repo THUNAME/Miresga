@@ -25,14 +25,14 @@ private:
     moodycamel::ProducerToken* _del_token;
     DPDKManager* _dpdk_manager;
     RuleManager* _rule_manager;
-    RDMAManager* _rdma_manager;
     EntryManager* _entry_manager;
     FlowTable* _flow_table;
+    std::vector<uint8_t> _crc8_table;
     void _main_loop();
     void _process_pkts(rte_mbuf** bufs, uint16_t nb_pkts);
     static int _worker_fun_wrapper(void* arg);
     static std::string _parse_payload(std::string payload);
-    static uint8_t _calc_crc8(uint32_t ip, uint16_t port);
+    uint8_t _calc_crc8(uint32_t ip, uint16_t port);
     MiresgaStatus_t _send_pkts(rte_mbuf** mbuf, size_t nb_pkts);
     void _get_inbound_normal_pkt(rte_mbuf* recv_mbuf, uint8_t d_index, rte_mbuf* send_mbuf);
     void _get_outbound_normal_pkt(rte_mbuf* recv_mbuf, rte_mbuf* send_mbuf);

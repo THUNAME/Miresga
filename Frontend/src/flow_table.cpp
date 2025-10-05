@@ -64,6 +64,7 @@ __attribute__((always_inline)) void FlowTable::remove_flow(MiresgaOFTKey_t& key)
 
 __attribute__((always_inline)) std::vector<MiresgaOFTEntry_t> FlowTable::get_crc_entries(uint8_t crc) {
     std::vector<MiresgaOFTEntry_t> res;
+    res.reserve(_flow_map[crc].size());
     // Do not lock the map. Otherwise this function may block the packet processor threads.
     _flow_map[crc].visit_all([&res](const auto& item) {
         res.push_back(item.second->entry_data);

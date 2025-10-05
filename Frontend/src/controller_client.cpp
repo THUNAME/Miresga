@@ -77,7 +77,7 @@ bool ControllerClient::_update_info()
             uint8_t num_update_id = _recv_buffer[2];
             SPDLOG_LOGGER_DEBUG(logger, "Number of IDs to update: {}", num_update_id);
             size_t now_bytes = 3;
-            std::unordered_map<uint8_t, uint8_t> crc_2_id;
+            std::unordered_map<uint8_t, std::vector<uint8_t>> id_2_crcs;
             for (uint8_t i = 0; i < num_update_id; ++i) {
                 uint8_t update_id = _recv_buffer[now_bytes];
                 now_bytes++;
@@ -85,13 +85,10 @@ bool ControllerClient::_update_info()
                 SPDLOG_LOGGER_DEBUG(logger, "Updating ID {} for {} CRCs", update_id, num_crcs);
                 SPDLOG_LOGGER_DEBUG(logger, "CRCs: {}", fmt::join(std::vector<uint8_t>(_recv_buffer + now_bytes + 1, _recv_buffer + now_bytes + 1 + num_crcs), ","));
                 now_bytes++;
-                for (uint8_t j = 0; j < num_crcs; ++j) {
-                    uint8_t crc = _recv_buffer[now_bytes];
-                    now_bytes++;
-                    crc_2_id[crc] = update_id;
-                }
+                id_2_crcs[update_id] = std::vector<uint8_t>(_recv_buffer + now_bytes, _recv_buffer + now_bytes + num_crcs);
+                now_bytes += num_crcs;
             }
-            _rdma_manager->remove_engine(remote_id, crc_2_id);
+            _rdma_manager->remove_engine(remote_id, id_2_crcs);
             break;
         }
         case OperationType_t::UPDATE_RULE: {
@@ -148,22 +145,6 @@ bool ControllerClient::_update_info()
             _rule_manager->set_virtual_server_info(server_info);
             break;
         }
-        case SYNC_OLD_DATA: {
-            SPDLOG_LOGGER_INFO(logger, "Receive SYNC_OLD_DATA from Tofino");
-            uint8_t remote_id = _recv_buffer[1];
-            SPDLOG_LOGGER_DEBUG(logger, "Remote RDMA ID: {}", remote_id);
-            uint8_t num_crcs = _recv_buffer[2];
-            SPDLOG_LOGGER_DEBUG(logger, "Number of CRCs to sync: {}", num_crcs);
-            SPDLOG_LOGGER_DEBUG(logger, "CRCs to sync: {}", fmt::join(std::vector<uint8_t>(_recv_buffer + 3, _recv_buffer + 3 + num_crcs), ","));
-            size_t now_bytes = 3;
-            for (uint8_t i = 0; i < num_crcs; ++i) {
-                uint8_t crc = _recv_buffer[now_bytes];
-                now_bytes++;
-                std::vector<MiresgaOFTEntry_t> crc_entries = _flow_table->get_crc_entries(crc);
-                _rdma_manager->add_old_flow_data(remote_id, crc_entries);
-            }
-
-        }
         case OK: {
             break;
         }
@@ -204,15 +185,11 @@ void ControllerClient::_main_loop()
                     }
                 }
             }
-            else if(events[i].data.fd == _sync_timerfd) {
+            else if((events[i].data.u32 & 0xFFFFFF00) == TIMER_MASK) {
                 // Since too many logs will be generated, comment it out here.
                 // SPDLOG_LOGGER_DEBUG(logger, "Sync timer triggered");
-                uint64_t expirations;
-                ssize_t recv_size = read(_sync_timerfd, &expirations, sizeof(expirations));
-                if (recv_size == -1) {
-                    throw std::runtime_error("Failed to read sync timerfd");
-                }
-                _rdma_manager->sync_states();
+                uint8_t id = events[i].data.u32 & 0xFF;
+                _rdma_manager->sync_states(id);
             }
             else if(events[i].data.u32 == CQ_PRESENTER) {
                 SPDLOG_LOGGER_DEBUG(logger, "Processing RDMA completions");
@@ -330,29 +307,7 @@ ControllerClient::ControllerClient(char* switch_ip, uint16_t switch_port,
         throw std::runtime_error("Failed to add offload timerfd to epoll");
     }
 
-    // Create and configure the sync timerfd
-    _sync_timerfd = timerfd_create(CLOCK_MONOTONIC, 0);
-    if (_sync_timerfd == -1) {
-        throw std::runtime_error("Failed to create sync timerfd");
-    }
-
-    struct itimerspec sync_timer_value;
-    sync_timer_value.it_value.tv_sec = 0;
-    sync_timer_value.it_value.tv_nsec = 100000000;  // 0.1 seconds in nanoseconds
-    sync_timer_value.it_interval.tv_sec = 0;
-    sync_timer_value.it_interval.tv_nsec = 100000000;  // 0.1 seconds in nanoseconds
-
-    if (timerfd_settime(_sync_timerfd, 0, &sync_timer_value, NULL) == -1) {
-        throw std::runtime_error("Failed to set sync timer");
-    }
-
-    epoll_event sync_ev;
-    sync_ev.events = EPOLLIN;
-    sync_ev.data.fd = _sync_timerfd;
-    if (epoll_ctl(_epoll_fd, EPOLL_CTL_ADD, _sync_timerfd, &sync_ev) == -1) {
-        throw std::runtime_error("Failed to add sync timerfd to epoll");
-    }
-    SPDLOG_LOGGER_DEBUG(logger, "Timers added to epoll");
+    SPDLOG_LOGGER_DEBUG(logger, "Timer added to epoll");
     _client_thread = std::thread(&ControllerClient::_main_loop, this);
     _client_thread.detach();
 }

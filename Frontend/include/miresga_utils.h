@@ -50,7 +50,6 @@ enum OperationType_t {
     UPDATE_V_INFO,
     OFFLOAD_ENTRIES,
     INIT_RDMA_ENGINE,
-    SYNC_OLD_DATA,
     UPDATE_RDMA_INFO,
     RDMA_START,
     RDMA_STOP

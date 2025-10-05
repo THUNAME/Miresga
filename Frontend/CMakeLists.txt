@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.12...3.21)
 
 project(MiresgaFrontend VERSION 2.0.0 LANGUAGES CXX)
-set(PROJECT_VERSION_RC "rc1")
+set(PROJECT_VERSION_RC "rc2")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

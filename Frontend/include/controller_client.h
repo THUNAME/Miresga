@@ -33,7 +33,6 @@ private:
     char _recv_buffer[ETH_FRAME_LEN];
     int _epoll_fd;
     int _offload_timerfd;
-    int _sync_timerfd;
     bool _update_info();
     void _main_loop();
     ControllerClient() = delete;

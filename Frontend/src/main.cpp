@@ -85,6 +85,37 @@ int main(int argc, char** argv) {
         processor->start(pkt_processor_core_ids[i]);
     }
     std::string input_str;
+    std::thread monitor_thread([&dpdk_config]() {
+        uint64_t prev_ipackets = 0;
+        uint64_t prev_opackets = 0;
+        uint64_t prev_ierrors = 0;
+        uint64_t prev_oerrors = 0;
+        uint64_t prev_q_ipackets[16] = {0};
+        uint64_t prev_q_opackets[16] = {0};
+        uint64_t prev_q_errors[16] = {0};
+
+        while (true) {
+            FlowTable* flow_table = FlowTable::get_instance();
+            rte_eth_stats stats;
+            int ret = rte_eth_stats_get(DPDKManager::get_instance()->port_id, &stats);
+            SPDLOG_INFO("ipackets: {}", stats.ipackets - prev_ipackets);
+            SPDLOG_INFO("opackets: {}", stats.opackets - prev_opackets);
+            SPDLOG_INFO("ierrors: {}", stats.ierrors - prev_ierrors);
+            SPDLOG_INFO("oerrors: {}", stats.oerrors - prev_oerrors);
+            prev_ipackets = stats.ipackets;
+            prev_opackets = stats.opackets;
+            prev_ierrors = stats.ierrors;
+            prev_oerrors = stats.oerrors;
+            for (int i = 0; i < dpdk_config.queue_size; ++i) {
+                SPDLOG_INFO("Queue {}: ipackets: {}, opackets: {}", i, stats.q_ipackets[i] - prev_q_ipackets[i], stats.q_opackets[i] - prev_q_opackets[i]);
+                SPDLOG_INFO("Queue {}: errors: {}", i, stats.q_errors[i] - prev_q_errors[i]);
+                prev_q_ipackets[i] = stats.q_ipackets[i];
+                prev_q_opackets[i] = stats.q_opackets[i];
+                prev_q_errors[i] = stats.q_errors[i];
+            }
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+    });
     while (true) {
         std::cin >> input_str;
         if (input_str == "exit") {

@@ -8,7 +8,10 @@
 #include "spdlog/sinks/stdout_color_sinks.h"
 
 #include <vector>
+#include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/epoll.h>
+#include <sys/timerfd.h>
 #include <unordered_map>
 
 class RDMAEngine
@@ -19,21 +22,25 @@ private:
     ibv_recv_wr* bad_recv_wr;
     RDMAInfo_t* _local_rdma_info;
     RDMAInfo_t* _remote_rdma_info;
-    RDMABuffer_t* _send_add_buffer;
-    RDMABuffer_t* _send_del_buffer;
-    RDMABuffer_t* _recv_buffer;
+    void* _send_buffer;
+    void* _recv_buffer;
+    size_t _send_buffer_size;
+    size_t _recv_buffer_size;
+    ibv_mr* _send_mr;
+    ibv_mr* _recv_mr;
     ibv_qp* _qp;
+    int _timer_fd;
+    int _epoll_fd;
+    itimerspec _timer_value;
     void _create_qp(ibv_pd* pd, ibv_cq* cq);
     void _change_qp_to_init();
     void _change_qp_to_rtr();
     void _change_qp_to_rts();
 public:
-    RDMAEngine(uint8_t id, ibv_pd* pd, ibv_cq* cq, ibv_gid& gid);   
+    RDMAEngine(uint8_t id, ibv_pd* pd, ibv_cq* cq, ibv_gid& gid, int epoll_fd);   
     ~RDMAEngine();
     void init_engine(RDMAInfo_t* remote_rdma_info);
-    void add_flow_data(MiresgaOFTEntry_t* data);
     void add_flow_data(std::vector<MiresgaOFTEntry_t>& data_vec);
-    void del_flow_data(MiresgaOFTKey_t* data);
     void sync_start();
     void sync_complete();
     RDMAInfo_t* get_local_rdma_info();
