@@ -43,17 +43,30 @@ bool ControllerClient::_update_info()
             for (uint8_t i = 0; i < num_update; ++i) {
                 uint8_t remote_id = _recv_buffer[now_bytes];
                 now_bytes++;
-                uint8_t num_crcs = _recv_buffer[now_bytes];
-                now_bytes++;
-                std::vector<uint8_t> crcs(_recv_buffer + now_bytes, _recv_buffer + now_bytes + num_crcs);
-                now_bytes += num_crcs;
                 RDMAInfo_t* remote_rdma_info = new RDMAInfo_t;
                 memcpy(remote_rdma_info, _recv_buffer + now_bytes, sizeof(RDMAInfo_t));
                 now_bytes += sizeof(RDMAInfo_t);
-                SPDLOG_LOGGER_DEBUG(logger, "Updating RDMA engine {}, num_crcs {}", remote_id, num_crcs);
-                SPDLOG_LOGGER_DEBUG(logger, "crcs:{}", fmt::join(crcs, ","));
-                _rdma_manager->update_engine(remote_id, remote_rdma_info, crcs);
+                _rdma_manager->update_engine(remote_id, remote_rdma_info);
             }
+            break;
+        }
+        case OperationType_t::UPDATE_CRC: {
+            SPDLOG_LOGGER_DEBUG(logger, "Receive UPDATE_CRC from Tofino");
+            uint8_t num_update = _recv_buffer[1];
+            SPDLOG_LOGGER_DEBUG(logger, "Number of RDMA engines to update: {}", num_update);
+            size_t now_bytes = 2;
+            std::unordered_map<uint8_t, std::vector<uint8_t>> id_2_crcs;
+            for (uint8_t i = 0; i < num_update; ++i) {
+                uint8_t remote_id = _recv_buffer[now_bytes];
+                now_bytes++;
+                uint8_t num_crcs = _recv_buffer[now_bytes];
+                SPDLOG_LOGGER_DEBUG(logger, "Updating ID {} for {} CRCs", remote_id, num_crcs);
+                SPDLOG_LOGGER_DEBUG(logger, "CRCs: {}", fmt::join(std::vector<uint8_t>(_recv_buffer + now_bytes + 1, _recv_buffer + now_bytes + 1 + num_crcs), ","));
+                now_bytes++;
+                id_2_crcs[remote_id] = std::vector<uint8_t>(_recv_buffer + now_bytes, _recv_buffer + now_bytes + num_crcs);
+                now_bytes += num_crcs;
+            }
+            _rdma_manager->update_crcs(id_2_crcs);
             std::string complete_msg = "";
             complete_msg.append(1, static_cast<char>(OperationType_t::COMPLETE));
             _connector->send_message(complete_msg.data(), complete_msg.size());
@@ -207,33 +220,21 @@ void ControllerClient::_main_loop()
                         }
                     } else if (wc.opcode == IBV_WC_RECV_RDMA_WITH_IMM) {
                         SPDLOG_LOGGER_DEBUG(logger, "Received RDMA with immediate from engine {}", remote_id);
-                        uint32_t imm_data = wc.imm_data;
+                        uint32_t num_entries = wc.imm_data;
                         void* recv_buffer = _rdma_manager->get_recv_addr(remote_id);
-                        uint16_t add_entry = static_cast<uint16_t>(imm_data >> 16);
-                        SPDLOG_LOGGER_DEBUG(logger, "Number of entries to add: {}", add_entry);
-                        uint16_t del_key = static_cast<uint16_t>(imm_data & 0xFFFF);
-                        SPDLOG_LOGGER_DEBUG(logger, "Number of keys to delete: {}", del_key);
+                        SPDLOG_LOGGER_DEBUG(logger, "Number of entries to add: {}", num_entries);
+                        std::vector<MiresgaOFTEntry_t> entries(reinterpret_cast<MiresgaOFTEntry_t*>(recv_buffer), 
+                                                               reinterpret_cast<MiresgaOFTEntry_t*>(recv_buffer) + num_entries);
                         size_t offset = 0;
-                        if (add_entry > 0) {
-                           for (uint16_t i = 0; i < add_entry; ++i) {
-                                MiresgaOFTEntry_t* entry = reinterpret_cast<MiresgaOFTEntry_t*>(
-                                                               reinterpret_cast<uint8_t*>(recv_buffer) + offset
-                                                         );
-                                offset += sizeof(MiresgaOFTEntry_t);
-                                MiresgaFlowData_t* data = new MiresgaFlowData_t();
-                                data->entry_data = *entry;
-                                data->state = static_cast<FlowState_t>(entry->data.flow_state);
-                                _flow_table->remove_flow(data->entry_data.key);
-                                _flow_table->insert_flow(data->entry_data.key, data);
-                            }
-                        }
-                        if (del_key > 0) {
-                            for (uint16_t i = 0; i < del_key; ++i) {
-                                MiresgaOFTKey_t* key = reinterpret_cast<MiresgaOFTKey_t*>(
-                                    reinterpret_cast<uint8_t*>(recv_buffer) + offset);
-                                offset += sizeof(MiresgaOFTKey_t);
-                                _flow_table->remove_flow(*key);
-                            }
+                        for (uint32_t i = 0; i < num_entries; ++i) {
+                            MiresgaOFTEntry_t* entry = reinterpret_cast<MiresgaOFTEntry_t*>(
+                                                           reinterpret_cast<uint8_t*>(recv_buffer) + offset
+                                                     );
+                            offset += sizeof(MiresgaOFTEntry_t);
+                            MiresgaFlowData_t* data = new MiresgaFlowData_t();
+                            data->entry_data = *entry;
+                            data->state = static_cast<FlowState_t>(entry->data.flow_state);
+                            _flow_table->insert_flow(data->entry_data.key, data);
                         }
                     }
                     else if (wc.opcode == IBV_WC_RDMA_WRITE) {

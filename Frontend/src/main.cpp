@@ -88,11 +88,18 @@ int main(int argc, char** argv) {
     std::thread monitor_thread([&dpdk_config]() {
         uint64_t prev_ipackets = 0;
         uint64_t prev_opackets = 0;
+        uint64_t prev_ibytes = 0;
+        uint64_t prev_obytes = 0;
         uint64_t prev_ierrors = 0;
         uint64_t prev_oerrors = 0;
         uint64_t prev_q_ipackets[16] = {0};
         uint64_t prev_q_opackets[16] = {0};
         uint64_t prev_q_errors[16] = {0};
+        std::ofstream log_file("/home/sxy/dpdk_throughput.csv");
+        uint64_t prev_timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        log_file << prev_timestamp << "," << prev_ibytes << "," << prev_obytes << std::endl;
+        log_file.flush();
 
         while (true) {
             FlowTable* flow_table = FlowTable::get_instance();
@@ -113,7 +120,7 @@ int main(int argc, char** argv) {
                 prev_q_opackets[i] = stats.q_opackets[i];
                 prev_q_errors[i] = stats.q_errors[i];
             }
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         }
     });
     while (true) {

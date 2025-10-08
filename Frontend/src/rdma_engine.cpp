@@ -213,36 +213,34 @@ RDMAEngine::sync_start()
         throw std::runtime_error("Failed to read timerfd");
     }
     // SPDLOG_LOGGER_DEBUG(logger, "Syncing RDMA Engine ID: {}", _id);
-    std::vector<ibv_sge> all_sge;
-    all_sge.reserve(2);
+    ibv_sge send_sge;
     uint32_t imm_data = 0;
     if (_send_buffer_size > 0) {
-        ibv_sge send_sge;
         send_sge.addr = reinterpret_cast<uint64_t>(_send_mr->addr);
         send_sge.length = _send_buffer_size;
         send_sge.lkey = _send_mr->lkey;
-        all_sge.push_back(send_sge);
-        imm_data |= (_send_buffer_size / sizeof(MiresgaOFTEntry_t)) << 16;
+        imm_data += _send_buffer_size / sizeof(MiresgaOFTEntry_t); // Number of entries being sent
+        SPDLOG_LOGGER_DEBUG(logger, "Sending {} bytes of flow data for RDMA Engine ID: {}", _send_buffer_size, _id);
+        // Reset send buffer size after preparing the send work request
         _send_buffer_size = 0;
-    }
-    if (_recv_buffer_size > 0) {
-        ibv_sge recv_sge;
-        recv_sge.addr = reinterpret_cast<uint64_t>(_recv_mr->addr);
-        recv_sge.length = _recv_buffer_size;
-        recv_sge.lkey = _recv_mr->lkey;
-        all_sge.push_back(recv_sge);
-        imm_data |= (_recv_buffer_size / sizeof(MiresgaOFTKey_t));
-        _recv_buffer_size = 0;
-    }
-    if (all_sge.empty()) {
-        SPDLOG_LOGGER_DEBUG(logger, "No data to sync for RDMA Engine ID: {}", _id);
+    } else {
+        SPDLOG_LOGGER_DEBUG(logger, "No data to send for RDMA Engine ID: {}", _id);
+        // No sge to send, reset the timer. Otherwise, the timer will never be restarted.
+        #ifdef DEBUG
+        send_sge.addr = reinterpret_cast<uint64_t>(_send_mr->addr);
+        send_sge.length = 4096;
+        send_sge.lkey = _send_mr->lkey;
+        imm_data = 0;
+        #else
+        timerfd_settime(_timer_fd, 0, &_timer_value, nullptr); // Restart the timer for the next sync
         return;
+        #endif
     }
     ibv_send_wr send_wr;
     memset(&send_wr, 0, sizeof(send_wr));
     send_wr.wr_id = _id;
-    send_wr.sg_list = all_sge.data();
-    send_wr.num_sge = all_sge.size();
+    send_wr.sg_list = &send_sge;
+    send_wr.num_sge = 1;
     send_wr.opcode = IBV_WR_RDMA_WRITE_WITH_IMM;
     send_wr.imm_data = imm_data;
     send_wr.wr.rdma.remote_addr = _remote_rdma_info->addr;

@@ -38,7 +38,8 @@ public:
     static RDMAManager* get_instance();
     static void destroy_instance();
     std::string add_engine(uint8_t id);
-    void update_engine(uint8_t id, RDMAInfo_t* remote_rdma_info, std::vector<uint8_t>& crcs);
+    void update_engine(uint8_t id, RDMAInfo_t* remote_rdma_info);
+    void update_crcs(std::unordered_map<uint8_t, std::vector<uint8_t>>& id_2_crcs);
     void remove_engine(uint8_t id, std::unordered_map<uint8_t, std::vector<uint8_t>>& _id_2_crcs);
     void start_engine(uint8_t id);
     void sync_states(uint8_t id);

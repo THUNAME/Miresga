@@ -51,6 +51,7 @@ enum OperationType_t {
     OFFLOAD_ENTRIES,
     INIT_RDMA_ENGINE,
     UPDATE_RDMA_INFO,
+    UPDATE_CRC,
     RDMA_START,
     RDMA_STOP
 };

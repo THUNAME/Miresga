@@ -160,7 +160,7 @@ __attribute__((always_inline)) std::string RDMAManager::add_engine(uint8_t id)
     return msg;
 }
 
-__attribute__((always_inline)) void RDMAManager::update_engine(uint8_t id, RDMAInfo_t* remote_rdma_info, std::vector<uint8_t>& crcs)
+__attribute__((always_inline)) void RDMAManager::update_engine(uint8_t id, RDMAInfo_t* remote_rdma_info)
 {
     SPDLOG_LOGGER_DEBUG(logger, "Updating RDMA engine with ID: {}", id);
     SPDLOG_LOGGER_DEBUG(logger, "Remote RDMA Info - GID: {:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}:{:02x}{:02x}, QPN: 0x{:x}, ADDR: 0x{:x}, RKEY: 0x{:x}",
@@ -171,18 +171,23 @@ __attribute__((always_inline)) void RDMAManager::update_engine(uint8_t id, RDMAI
                         remote_rdma_info->qpn,
                         remote_rdma_info->addr,
                         remote_rdma_info->rkey);
-    SPDLOG_LOGGER_DEBUG(logger, "Sync CRCs for engine ID {}: {}", id, crcs);
-    if (unlikely(crcs.empty())) {
-        SPDLOG_LOGGER_ERROR(logger, "No CRCs provided for engine ID {}", id);
-        throw std::runtime_error("No CRCs provided");
-    }
-    _id_2_crcs[id] = std::vector<uint8_t>(crcs);
     auto it = _id_2_engines.find(id);
     if (unlikely(it == _id_2_engines.end())) {
         SPDLOG_LOGGER_ERROR(logger, "Engine ID {} not found", id);
         throw std::runtime_error("Engine ID not found");
     }
     it->second->init_engine(remote_rdma_info);
+}
+
+__attribute__((always_inline)) void RDMAManager::update_crcs(std::unordered_map<uint8_t, std::vector<uint8_t>>& id_2_crcs)
+{
+    SPDLOG_LOGGER_DEBUG(logger, "Updating CRC mappings for RDMA engines");
+    _id_2_crcs = std::move(id_2_crcs);
+    #ifdef DEBUG
+    for (auto [id, crcs] : _id_2_crcs) {
+        SPDLOG_LOGGER_DEBUG(logger, "Engine ID {} handles CRCs: {}", id, fmt::join(crcs, ","));
+    }
+    #endif
 }
 
 __attribute__((always_inline)) 
@@ -219,9 +224,9 @@ __attribute__((always_inline)) void RDMAManager::sync_states(uint8_t id) {
     std::vector<MiresgaOFTEntry_t> data_vec;
     data_vec.reserve(65536);
     if (it != _id_2_engines.end()) {
-        SPDLOG_LOGGER_DEBUG(logger, "Syncing RDMA engine {} states", id);
+        // SPDLOG_LOGGER_DEBUG(logger, "Syncing RDMA engine {} states", id);
         for (auto crc : _id_2_crcs[id]) {
-            SPDLOG_LOGGER_DEBUG(logger, "Engine ID {} handles CRC {:02x}", id, crc);
+        //     SPDLOG_LOGGER_DEBUG(logger, "Engine ID {} handles CRC {:02x}", id, crc);
             std::vector<MiresgaOFTEntry_t> crc_data = _flow_table->get_crc_entries(crc);
             data_vec.insert(data_vec.end(), crc_data.begin(), crc_data.end());
         }

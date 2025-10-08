@@ -36,7 +36,7 @@ __attribute__((always_inline)) void FlowTable::insert_flow(MiresgaOFTKey_t& key,
     SPDLOG_LOGGER_DEBUG(logger, "Insert flow: key={}:{}", inet_ntop(AF_INET, &key.client_ip, ip_str, INET_ADDRSTRLEN), key.client_port);
     SPDLOG_LOGGER_DEBUG(logger, "Data: state={}", static_cast<int>(flow_data->state));
     #endif
-    _flow_map[key.crc].emplace(packed_key(key), flow_data);
+    _flow_map[key.crc].insert_or_assign(packed_key(key), flow_data);
 }
 
 __attribute__((always_inline)) MiresgaFlowData_t* FlowTable::get_flow(MiresgaOFTKey_t& key) {
