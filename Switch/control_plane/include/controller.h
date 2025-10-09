@@ -46,6 +46,7 @@ enum MiresgaOperationType_t {
     INIT_RDMA_ENGINE,
     UPDATE_RDMA_INFO,
     UPDATE_CRC,
+    SYNC_OLD_DATA,
     RDMA_START,
     RDMA_STOP
 };
@@ -88,6 +89,7 @@ private:
     std::unordered_map<uint8_t, std::unordered_map<uint8_t, RDMAInfo_t>> _id_2_rdma_info;
     std::unordered_map<uint8_t, size_t> _id_2_num_crcs;
     std::unordered_map<uint8_t, std::unordered_map<uint8_t, std::vector<uint8_t>>> _id_2_sync_crcs;
+    std::unordered_map<uint8_t, std::vector<uint8_t>> _id_2_need_changed_crcs;
     std::unordered_map<uint8_t, ServerInfo_t> _d_index_2_backend_server_info;
     std::vector<uint8_t> _active_ids;
     std::queue<uint8_t> _idle_ids;
