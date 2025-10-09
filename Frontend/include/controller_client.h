@@ -9,6 +9,7 @@
 #include "miresga_utils.h"
 #include "entry_manager.h"
 #include "spdlog/spdlog.h"
+#include "operation_queue.h"
 #include "concurrentqueue.h"
 #include "controller_connector.h"
 #include "spdlog/sinks/stdout_color_sinks.h"

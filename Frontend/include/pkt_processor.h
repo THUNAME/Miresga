@@ -26,6 +26,7 @@ private:
     DPDKManager* _dpdk_manager;
     RuleManager* _rule_manager;
     EntryManager* _entry_manager;
+    RDMAManager* _rdma_manager;
     FlowTable* _flow_table;
     std::vector<uint8_t> _crc8_table;
     void _main_loop();

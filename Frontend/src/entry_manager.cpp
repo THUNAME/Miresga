@@ -101,7 +101,7 @@ EntryManager::serialize_msg() {
     }
     std::string msg = "";
     ssize_t total_bytes = 0;
-    uint8_t msg_type = static_cast<uint8_t>(OperationType_t::OFFLOAD_ENTRIES);
+    uint8_t msg_type = static_cast<uint8_t>(MiresgaOperationType_t::OFFLOAD_ENTRIES);
     msg.append(1, static_cast<char>(msg_type));
     total_bytes++;
     uint8_t need_add_size = (_num_remain_entry > ENTRY_BATCH_SIZE) ? 

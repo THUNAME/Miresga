@@ -37,7 +37,7 @@ enum ControllerState_t {
     WAIT_RDMA_SYNC
 };
 
-enum OperationType_t {
+enum MiresgaOperationType_t {
     COMPLETE = 0,
     UPDATE_RULE,
     UPDATE_D_INDEX,

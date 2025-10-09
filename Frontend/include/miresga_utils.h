@@ -43,7 +43,7 @@ enum MiresgaStatus_t {
     UNKNOWN
 };
 
-enum OperationType_t {
+enum MiresgaOperationType_t {
     COMPLETE = 0,
     UPDATE_RULE,
     UPDATE_D_INDEX,
@@ -52,6 +52,7 @@ enum OperationType_t {
     INIT_RDMA_ENGINE,
     UPDATE_RDMA_INFO,
     UPDATE_CRC,
+    SYNC_OLD_DATA,
     RDMA_START,
     RDMA_STOP
 };
@@ -101,21 +102,6 @@ public:
     MiresgaOFTEntry_t entry_data;
     MiresgaFlowData_t();
     ~MiresgaFlowData_t();
-};
-
-class RDMABuffer_t {
-public:
-    void*      buffer;
-    ibv_mr*    mr;
-    size_t     size;
-    std::atomic<size_t> num_used;
-    size_t num_sent;
-    std::shared_mutex mutex;
-    RDMABuffer_t(size_t size, ibv_pd* pd);
-    ~RDMABuffer_t();
-    size_t add_new_data(void* data, size_t data_size);
-    void create_sge(ibv_sge& sge, bool& changed);
-    void remove_last_send_data();
 };
 
 #endif

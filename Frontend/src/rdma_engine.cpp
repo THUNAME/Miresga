@@ -104,14 +104,12 @@ RDMAEngine::RDMAEngine(
         SPDLOG_LOGGER_ERROR(logger, "Failed to register memory region for RDMA Engine ID: {}", _id);
         throw std::runtime_error("Failed to register memory region");
     }
-    _send_buffer_size = 0;
     _recv_buffer = reinterpret_cast<void*>(new char[RDMA_BUFFER_SIZE]);
     _recv_mr = ibv_reg_mr(pd, _recv_buffer, RDMA_BUFFER_SIZE, IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ);
     if (unlikely(!_recv_mr)) {
         SPDLOG_LOGGER_ERROR(logger, "Failed to register memory region for RDMA Engine ID: {}", _id);
         throw std::runtime_error("Failed to register memory region");
     }
-    _recv_buffer_size = 0;
     _local_rdma_info->addr = reinterpret_cast<uint64_t>(_recv_mr->addr);
     _local_rdma_info->rkey = _recv_mr->rkey;
     memcpy(&_local_rdma_info->gid, &gid, sizeof(ibv_gid));
@@ -183,30 +181,41 @@ RDMAEngine::init_engine(
     ibv_post_recv(_qp, &recv_wr, &bad_recv_wr);
 }
 
-__attribute__((always_inline)) 
+__attribute__((always_inline))
 void 
 RDMAEngine::add_flow_data(
-    std::vector<MiresgaOFTEntry_t>& data_vec
-) 
-{
-    if (data_vec.empty()) {
-        SPDLOG_LOGGER_DEBUG(logger, "No flow data to add for Engine ID: {}", _id);
-    }
-    size_t data_size = data_vec.size() * sizeof(MiresgaOFTEntry_t);
-    size_t send_size = data_size;
-    if (unlikely(_send_buffer_size + data_size > RDMA_BUFFER_SIZE)) {
-        SPDLOG_LOGGER_WARN(logger, "Flow data size exceeds RDMA buffer size for Engine ID: {}", _id);
-        send_size = RDMA_BUFFER_SIZE - _send_buffer_size;
-    }
-    memcpy(reinterpret_cast<char*>(_send_buffer) + _send_buffer_size, data_vec.data(), send_size);
-    _send_buffer_size += send_size;
-    SPDLOG_LOGGER_DEBUG(logger, "Prepared {} bytes of flow data to add for Engine ID: {}", send_size, _id);
+    MiresgaFlowData_t* flow_data
+) {
+    SPDLOG_LOGGER_INFO(logger, "Adding flow data to RDMA Engine ID: {}", _id);
+    Operation_t operation;
+    operation.type = INSERT;
+    operation.entry = flow_data->entry_data;
+    _operation_queue.add_operation(operation);
 }
 
 __attribute__((always_inline)) 
 void 
-RDMAEngine::sync_start() 
-{
+RDMAEngine::add_flow_data(
+    std::vector<MiresgaOFTEntry_t>& data_vec
+) {
+    _operation_queue.add_old_entries(data_vec);
+}
+
+__attribute__((always_inline))
+void
+RDMAEngine::del_flow_data(
+    MiresgaFlowData_t* flow_data
+) {
+    Operation_t operation;
+    operation.type = DELETE;
+    operation.entry = flow_data->entry_data;
+    _operation_queue.add_operation(operation);
+}
+
+__attribute__((always_inline)) 
+void 
+RDMAEngine::sync_start(
+) {
     uint64_t exp;
     if (read(_timer_fd, &exp, sizeof(uint64_t)) != sizeof(uint64_t)) {
         SPDLOG_LOGGER_ERROR(logger, "Failed to read timerfd for RDMA Engine ID: {}", _id);
@@ -214,19 +223,18 @@ RDMAEngine::sync_start()
     }
     // SPDLOG_LOGGER_DEBUG(logger, "Syncing RDMA Engine ID: {}", _id);
     ibv_sge send_sge;
-    uint32_t imm_data = 0;
-    if (_send_buffer_size > 0) {
+    uint32_t imm_data = static_cast<uint32_t>(_operation_queue.get_all_operations(_send_buffer));
+    ssize_t send_len = imm_data * sizeof(Operation_t);
+    if (imm_data > 0) {
         send_sge.addr = reinterpret_cast<uint64_t>(_send_mr->addr);
-        send_sge.length = _send_buffer_size;
+        send_sge.length = send_len;
         send_sge.lkey = _send_mr->lkey;
-        imm_data += _send_buffer_size / sizeof(MiresgaOFTEntry_t); // Number of entries being sent
-        SPDLOG_LOGGER_DEBUG(logger, "Sending {} bytes of flow data for RDMA Engine ID: {}", _send_buffer_size, _id);
-        // Reset send buffer size after preparing the send work request
-        _send_buffer_size = 0;
+        SPDLOG_LOGGER_INFO(logger, "Sending {} bytes of flow data for RDMA Engine ID: {}", send_sge.length, _id);
     } else {
         SPDLOG_LOGGER_DEBUG(logger, "No data to send for RDMA Engine ID: {}", _id);
         // No sge to send, reset the timer. Otherwise, the timer will never be restarted.
         #ifdef DEBUG
+        // Test if RDMA is working.
         send_sge.addr = reinterpret_cast<uint64_t>(_send_mr->addr);
         send_sge.length = 4096;
         send_sge.lkey = _send_mr->lkey;

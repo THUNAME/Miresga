@@ -16,15 +16,15 @@ bool ControllerClient::_update_info()
         SPDLOG_LOGGER_ERROR(logger, "Connection with Tofino has been closed");
         throw std::runtime_error("Connection closed");
     }
-    OperationType_t op_type = static_cast<OperationType_t>(_recv_buffer[0]);
+    MiresgaOperationType_t op_type = static_cast<MiresgaOperationType_t>(_recv_buffer[0]);
     switch(op_type) {
-        case OperationType_t::INIT_RDMA_ENGINE: {
+        case MiresgaOperationType_t::INIT_RDMA_ENGINE: {
             SPDLOG_LOGGER_DEBUG(logger, "Receive INIT_RDMA_ENGINE from Tofino");
             uint8_t num_add = _recv_buffer[1];
             SPDLOG_LOGGER_DEBUG(logger, "Number of new RDMA engines: {}", num_add);
             size_t now_bytes = 2;
             std::string msg;
-            msg.append(1, static_cast<char>(OperationType_t::UPDATE_RDMA_INFO));
+            msg.append(1, static_cast<char>(MiresgaOperationType_t::UPDATE_RDMA_INFO));
             msg.append(1, static_cast<char>(num_add));
             for (uint8_t i = 0; i < num_add; ++i) {
                 uint8_t remote_id = _recv_buffer[now_bytes];
@@ -35,7 +35,7 @@ bool ControllerClient::_update_info()
             SPDLOG_LOGGER_DEBUG(logger, "Sent RDMA infos to Tofino");
             break;
         }
-        case OperationType_t::UPDATE_RDMA_INFO: {
+        case MiresgaOperationType_t::UPDATE_RDMA_INFO: {
             SPDLOG_LOGGER_DEBUG(logger, "Receive UPDATE_RDMA_INFO from Tofino");
             uint8_t num_update = _recv_buffer[1];
             SPDLOG_LOGGER_DEBUG(logger, "Number of RDMA engines to update: {}", num_update);
@@ -50,7 +50,7 @@ bool ControllerClient::_update_info()
             }
             break;
         }
-        case OperationType_t::UPDATE_CRC: {
+        case MiresgaOperationType_t::UPDATE_CRC: {
             SPDLOG_LOGGER_DEBUG(logger, "Receive UPDATE_CRC from Tofino");
             uint8_t num_update = _recv_buffer[1];
             SPDLOG_LOGGER_DEBUG(logger, "Number of RDMA engines to update: {}", num_update);
@@ -68,11 +68,30 @@ bool ControllerClient::_update_info()
             }
             _rdma_manager->update_crcs(id_2_crcs);
             std::string complete_msg = "";
-            complete_msg.append(1, static_cast<char>(OperationType_t::COMPLETE));
+            complete_msg.append(1, static_cast<char>(MiresgaOperationType_t::COMPLETE));
             _connector->send_message(complete_msg.data(), complete_msg.size());
             break;
         }
-        case OperationType_t::RDMA_START: {
+        case MiresgaOperationType_t::SYNC_OLD_DATA: {
+            SPDLOG_LOGGER_DEBUG(logger, "Receive SYNC_OLD_DATA from Tofino");
+            uint8_t num_id = _recv_buffer[1];
+            size_t now_bytes = 2;
+            for (int i = 0; i < num_id; ++i) {
+                uint8_t remote_id = _recv_buffer[now_bytes];
+                SPDLOG_LOGGER_DEBUG(logger, "Syncing old flow data to RDMA engine {}", remote_id);
+                now_bytes++;
+                uint8_t num_crcs = _recv_buffer[now_bytes];
+                now_bytes++;
+                std::vector<uint8_t> crcs(reinterpret_cast<uint8_t*>(_recv_buffer + now_bytes), reinterpret_cast<uint8_t*>(_recv_buffer + now_bytes + num_crcs));
+                now_bytes += num_crcs;
+                for (auto& crc:crcs) {
+                    std::vector<MiresgaOFTEntry_t> data_vec = _flow_table->get_crc_entries(crc);
+                    _rdma_manager->add_old_flow_data(remote_id, data_vec);
+                }
+            }
+            break;
+        }
+        case MiresgaOperationType_t::RDMA_START: {
             uint8_t num_start = _recv_buffer[1];
             SPDLOG_LOGGER_INFO(logger, "Number of RDMA engines to start: {}", num_start);
             SPDLOG_LOGGER_DEBUG(logger, "Starting RDMA engines ID: {}", fmt::join(std::vector<uint8_t>(_recv_buffer + 2, _recv_buffer + 2 + num_start), ","));
@@ -84,7 +103,7 @@ bool ControllerClient::_update_info()
             }
             break;
         }
-        case OperationType_t::RDMA_STOP: {
+        case MiresgaOperationType_t::RDMA_STOP: {
             uint8_t remote_id = _recv_buffer[1];
             SPDLOG_LOGGER_WARN(logger, "RDMA engine {} reports error and will be removed", remote_id);
             uint8_t num_update_id = _recv_buffer[2];
@@ -104,7 +123,7 @@ bool ControllerClient::_update_info()
             _rdma_manager->remove_engine(remote_id, id_2_crcs);
             break;
         }
-        case OperationType_t::UPDATE_RULE: {
+        case MiresgaOperationType_t::UPDATE_RULE: {
             SPDLOG_LOGGER_INFO(logger, "Receive UPDATE_RULE from Tofino");
             uint8_t add_size = _recv_buffer[1];
             SPDLOG_LOGGER_DEBUG(logger, "Number of rules to add: {}", add_size);
@@ -128,7 +147,7 @@ bool ControllerClient::_update_info()
             }
             break;
         }
-        case UPDATE_D_INDEX: {
+        case MiresgaOperationType_t::UPDATE_D_INDEX: {
             SPDLOG_LOGGER_INFO(logger, "Receive UPDATE_D_INDEX from Tofino");
             uint8_t add_size = _recv_buffer[1];
             SPDLOG_LOGGER_DEBUG(logger, "Number of backend server infos to add: {}", add_size);
@@ -152,20 +171,20 @@ bool ControllerClient::_update_info()
             }
             break;
         }
-        case UPDATE_V_INFO: {
+        case MiresgaOperationType_t::UPDATE_V_INFO: {
             SPDLOG_LOGGER_INFO(logger, "Receive UPDATE_V_INFO from Tofino");
             ServerInfo_t *server_info = reinterpret_cast<ServerInfo_t*>(_recv_buffer + 1);
             _rule_manager->set_virtual_server_info(server_info);
             break;
         }
-        case OK: {
+        case MiresgaOperationType_t::COMPLETE: {
             break;
         }
         default:
             throw std::runtime_error("Unknown operation type");
     }
     std::string complete_msg = "";
-    complete_msg.append(1, static_cast<char>(OperationType_t::COMPLETE));
+    complete_msg.append(1, static_cast<char>(MiresgaOperationType_t::COMPLETE));
     _connector->send_message(complete_msg.data(), complete_msg.size());
     return false;
 }
@@ -213,28 +232,30 @@ void ControllerClient::_main_loop()
                         SPDLOG_LOGGER_ERROR(logger, "RDMA operation failed for engine {}: {}", remote_id, ibv_wc_status_str(wc.status));
                         // Notify Tofino to stop using this RDMA engine
                         char error_msg[2];
-                        error_msg[0] = static_cast<char>(OperationType_t::RDMA_STOP);
+                        error_msg[0] = static_cast<char>(MiresgaOperationType_t::RDMA_STOP);
                         error_msg[1] = static_cast<char>(remote_id);
                         if (_connector->send_message(error_msg, sizeof(error_msg)) != MiresgaStatus_t::OK) {
                             throw std::runtime_error("Failed to send RDMA_STOP message");
                         }
                     } else if (wc.opcode == IBV_WC_RECV_RDMA_WITH_IMM) {
                         SPDLOG_LOGGER_DEBUG(logger, "Received RDMA with immediate from engine {}", remote_id);
-                        uint32_t num_entries = wc.imm_data;
+                        uint32_t num_operation = wc.imm_data;
                         void* recv_buffer = _rdma_manager->get_recv_addr(remote_id);
-                        SPDLOG_LOGGER_DEBUG(logger, "Number of entries to add: {}", num_entries);
-                        std::vector<MiresgaOFTEntry_t> entries(reinterpret_cast<MiresgaOFTEntry_t*>(recv_buffer), 
-                                                               reinterpret_cast<MiresgaOFTEntry_t*>(recv_buffer) + num_entries);
-                        size_t offset = 0;
-                        for (uint32_t i = 0; i < num_entries; ++i) {
-                            MiresgaOFTEntry_t* entry = reinterpret_cast<MiresgaOFTEntry_t*>(
-                                                           reinterpret_cast<uint8_t*>(recv_buffer) + offset
-                                                     );
-                            offset += sizeof(MiresgaOFTEntry_t);
-                            MiresgaFlowData_t* data = new MiresgaFlowData_t();
-                            data->entry_data = *entry;
-                            data->state = static_cast<FlowState_t>(entry->data.flow_state);
-                            _flow_table->insert_flow(data->entry_data.key, data);
+                        SPDLOG_LOGGER_INFO(logger, "Number of operations to process: {}", num_operation);
+                        std::vector<Operation_t> operations(reinterpret_cast<Operation_t*>(recv_buffer), 
+                                                            reinterpret_cast<Operation_t*>(recv_buffer) + num_operation);
+                        for (uint32_t i = 0; i < num_operation; ++i) {
+                            Operation_t& operation = operations[i];
+                            if (operation.type == OperationType_t::INSERT) {
+                                MiresgaFlowData_t* flow_data = new MiresgaFlowData_t;
+                                flow_data->entry_data = operation.entry;
+                                flow_data->state = static_cast<FlowState_t>(operation.entry.data.flow_state);
+                                _flow_table->insert_flow(flow_data->entry_data.key, flow_data);
+                            } else if (operation.type == OperationType_t::DELETE) {
+                                _flow_table->remove_flow(operation.entry.key);
+                            } else {
+                                SPDLOG_LOGGER_WARN(logger, "Unknown operation type {}", static_cast<int>(operation.type));
+                            }
                         }
                     }
                     else if (wc.opcode == IBV_WC_RDMA_WRITE) {

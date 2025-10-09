@@ -5,7 +5,7 @@ static auto logger = spdlog::stdout_color_mt("controller");
 std::string 
 FrontendController_t::_serializing_rule_table() {
     std::string msg;
-    msg.append(1, static_cast<char>(OperationType_t::UPDATE_RULE));
+    msg.append(1, static_cast<char>(MiresgaOperationType_t::UPDATE_RULE));
     msg.append(1, static_cast<char>(_rule_table.size()));
     msg.append(1, static_cast<char>(0));
     for (const auto& [key, rule_entry] : _rule_table) {
@@ -20,7 +20,7 @@ FrontendController_t::_serializing_rule_table() {
 std::string 
 FrontendController_t::_serializing_d_index_table() {
     std::string msg;
-    msg.append(1, static_cast<char>(OperationType_t::UPDATE_D_INDEX));
+    msg.append(1, static_cast<char>(MiresgaOperationType_t::UPDATE_D_INDEX));
     msg.append(1, static_cast<char>(_d_index_2_backend_server_info.size()));
     msg.append(1, static_cast<char>(0));
     for (const auto& [d_index, server_info] : _d_index_2_backend_server_info) {
@@ -33,7 +33,7 @@ FrontendController_t::_serializing_d_index_table() {
 std::string 
 FrontendController_t::_serializing_v_info() {
     std::string msg;
-    msg.append(1, static_cast<char>(OperationType_t::UPDATE_V_INFO));
+    msg.append(1, static_cast<char>(MiresgaOperationType_t::UPDATE_V_INFO));
     msg.append(reinterpret_cast<const char*>(&_virtual_server_info), sizeof(ServerInfo_t));
     return msg;
 }
@@ -422,10 +422,10 @@ FrontendController_t::_main_loop() {
                     _remove_frontend(id);
                 }
                 else {
-                    OperationType_t op_type = static_cast<OperationType_t>(recv_buffer[0]);
+                    MiresgaOperationType_t op_type = static_cast<MiresgaOperationType_t>(recv_buffer[0]);
                     SPDLOG_LOGGER_DEBUG(logger, "Operation type: {}", static_cast<uint8_t>(op_type));
                     switch (op_type) {
-                        case(OperationType_t::UPDATE_RDMA_INFO): {
+                        case(MiresgaOperationType_t::UPDATE_RDMA_INFO): {
                             uint8_t num_update = recv_buffer[1];
                             size_t now_bytes = 2;
                             for (uint8_t i = 0; i < num_update; ++i) {
@@ -451,13 +451,13 @@ FrontendController_t::_main_loop() {
                             }
                             break;
                         }
-                        case (OperationType_t::RDMA_STOP): {
+                        case (MiresgaOperationType_t::RDMA_STOP): {
                             uint8_t stop_id = recv_buffer[1];
                             SPDLOG_LOGGER_DEBUG(logger, "Removing frontend: {}", stop_id);
                             _remove_frontend(stop_id);
                             break;
                         }
-                        case (OperationType_t::OFFLOAD_ENTRIES): {
+                        case (MiresgaOperationType_t::OFFLOAD_ENTRIES): {
                             SPDLOG_LOGGER_DEBUG(logger, "Adding offload entries");
                             uint8_t add_size = recv_buffer[1];
                             uint8_t del_size = recv_buffer[2];
@@ -473,7 +473,7 @@ FrontendController_t::_main_loop() {
                             _client->del_offload_entries(del_keys);
                             break;
                         }
-                        case (OperationType_t::COMPLETE): {
+                        case (MiresgaOperationType_t::COMPLETE): {
                             if (_state == WAIT_RDMA_INIT) {
                                 _wait_init_ids.erase(id);
                                 if (_wait_init_ids.size() == 0) {
