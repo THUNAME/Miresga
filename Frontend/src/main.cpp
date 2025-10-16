@@ -85,22 +85,15 @@ int main(int argc, char** argv) {
         processor->start(pkt_processor_core_ids[i]);
     }
     std::string input_str;
-    #ifndef DISPLAY_FLAG
+    #ifdef DISPLAY_FLAG
     std::thread monitor_thread([&dpdk_config]() {
         uint64_t prev_ipackets = 0;
         uint64_t prev_opackets = 0;
-        uint64_t prev_ibytes = 0;
-        uint64_t prev_obytes = 0;
         uint64_t prev_ierrors = 0;
         uint64_t prev_oerrors = 0;
         uint64_t prev_q_ipackets[16] = {0};
         uint64_t prev_q_opackets[16] = {0};
         uint64_t prev_q_errors[16] = {0};
-        std::ofstream log_file("/home/sxy/dpdk_throughput.csv");
-        uint64_t prev_timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::system_clock::now().time_since_epoch()).count();
-        log_file << prev_timestamp << "," << prev_ibytes << "," << prev_obytes << std::endl;
-        log_file.flush();
 
         while (true) {
             FlowTable* flow_table = FlowTable::get_instance();
@@ -123,19 +116,6 @@ int main(int argc, char** argv) {
             }
             uint64_t curr_timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
                 std::chrono::system_clock::now().time_since_epoch()).count();
-            uint64_t interval = curr_timestamp - prev_timestamp;
-            if (interval == 0) {
-                continue;
-            }
-            prev_timestamp = curr_timestamp;
-            uint64_t ibytes = stats.ibytes;
-            uint64_t obytes = stats.obytes;
-            uint64_t bps_in = (ibytes - prev_ibytes) * 8 * 1000 / interval;
-            uint64_t bps_out = (obytes - prev_obytes) * 8 * 1000 / interval;
-            prev_ibytes = ibytes;
-            prev_obytes = obytes;
-            log_file << curr_timestamp << "," << bps_in << "," << bps_out << std::endl;
-            log_file.flush();
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
         }
     });
