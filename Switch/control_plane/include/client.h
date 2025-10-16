@@ -75,7 +75,7 @@ public:
     static SwitchClient_t* get_instance();
     void add_offload_entries(std::vector<MiresgaOFTEntry_t> entries);
     void del_offload_entries(std::vector<MiresgaOFTKey_t> keys);
-    void start_updating(std::unordered_map<uint8_t, EgressPortEntry_t> new_crc_2_idx);
+    void start_updating(std::unordered_map<uint8_t, EgressPortEntry_t> new_crc_2_idx, bool need_waiting_sync);
     void finish_updating();
 };
 

@@ -268,7 +268,8 @@ SwitchClient_t::del_offload_entries(
 
 void 
 SwitchClient_t::start_updating(
-    std::unordered_map<uint8_t, EgressPortEntry_t> new_crc_2_idx
+    std::unordered_map<uint8_t, EgressPortEntry_t> new_crc_2_idx,
+    bool need_waiting_sync
 ) {
     SPDLOG_LOGGER_DEBUG(logger, "Start updating");
     TableInfo_t* new_tb;
@@ -296,7 +297,8 @@ SwitchClient_t::start_updating(
     new_tb->add_entry(key_field_values, action_name, data_field_values);
     _new_tb_idx = 1 - _new_tb_idx;
     _new_tb_idx_reg->write_reg(0, _new_tb_idx);
-    _updating_flag_reg->write_reg(0, 1);
+    if (need_waiting_sync)
+        _updating_flag_reg->write_reg(0, 1);
 }
 
 void 

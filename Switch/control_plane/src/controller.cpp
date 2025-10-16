@@ -54,7 +54,7 @@ FrontendController_t::_add_frontend(
         }
         _active_ids.push_back(id);
         _state = NORMAL;
-        _client->start_updating(crc_2_egressportentry);
+        _client->start_updating(crc_2_egressportentry, true);
         _client->finish_updating();
         return;
     }
@@ -154,13 +154,14 @@ void
 FrontendController_t::_remove_frontend(
     uint8_t id
 ) {
-    SPDLOG_LOGGER_INFO(logger, "Removing frontend: {}", id);
+    SPDLOG_LOGGER_WARN(logger, "Removing frontend: {}", id);
     auto it = std::find(_active_ids.begin(), _active_ids.end(), id);
     if (it == _active_ids.end()) {
         // Maybe already removed, do not throw error.
         return;
     }
     _active_ids.erase(it);
+    SPDLOG_LOGGER_WARN(logger, "Remain {} frontends", _active_ids.size());
     int fd = _id_2_socket_fd[id];
     if (epoll_ctl(_epoll_fd, EPOLL_CTL_DEL, fd, NULL) < 0) {
         SPDLOG_LOGGER_ERROR(logger, "Failed to remove connection from epoll");
@@ -175,8 +176,7 @@ FrontendController_t::_remove_frontend(
     if (num_active_id == 0) {
         SPDLOG_LOGGER_INFO(logger, "All frontends disconnected, reset to INIT state");
         _state = INIT;
-        _client->start_updating({});
-        _client->finish_updating();
+        _client->start_updating({}, false);
     } else if(num_active_id > 1){
         for (size_t idx = 0; idx < num_active_id; ++idx) {
             std::string stop_msg;
@@ -187,10 +187,16 @@ FrontendController_t::_remove_frontend(
             uint8_t other_id = _active_ids[idx];
             SPDLOG_LOGGER_DEBUG(logger, "Sending rdma stop message to {}: {}", other_id, id);
             _id_2_num_crcs[other_id] += _id_2_sync_crcs[id][other_id].size();
+            SPDLOG_LOGGER_DEBUG(logger, "Frontend {} now need handles another {} CRCs: {}",
+                                other_id, _id_2_sync_crcs[id][other_id].size(), fmt::join(_id_2_sync_crcs[id][other_id], ","));
             size_t num_crc = _id_2_sync_crcs[id][other_id].size();
             size_t target_each_sync_crcs = _id_2_num_crcs[other_id] / (num_active_id - 1);
             size_t extra = _id_2_num_crcs[other_id] % (num_active_id - 1);
             size_t offset = 0;
+            std::vector<uint8_t> need_sync_crcs = _id_2_sync_crcs[id][other_id];
+            need_sync_crcs.insert(need_sync_crcs.end(), _id_2_sync_crcs[other_id][id].begin(), _id_2_sync_crcs[other_id][id].end());
+            SPDLOG_LOGGER_DEBUG(logger, "Engine {} need to sync another {} CRCs: {}", other_id, need_sync_crcs.size(), fmt::join(need_sync_crcs, ","));
+            _id_2_sync_crcs[other_id].erase(id);
             for (size_t j = 0; j < num_active_id - 1; ++j) {
                 size_t new_idx = (idx + 1 + j) % num_active_id;
                 uint8_t sync_id = _active_ids[new_idx];
@@ -199,13 +205,15 @@ FrontendController_t::_remove_frontend(
                     target_size++;
                 }
                 size_t need_add_size = target_size - _id_2_sync_crcs[other_id][sync_id].size();
+                SPDLOG_LOGGER_DEBUG(logger, "Engine {} now need sync another {} CRCS to Engine {}.", id, need_add_size, sync_id);
                 if(need_add_size > 0) {
                     need_update++;
                     stop_msg.append(1, static_cast<char>(sync_id));
                     stop_msg.append(1, static_cast<char>(need_add_size));
                     _id_2_sync_crcs[other_id][sync_id].insert(_id_2_sync_crcs[other_id][sync_id].end(),
-                                                              _id_2_sync_crcs[id][other_id].begin() + offset,
-                                                              _id_2_sync_crcs[id][other_id].begin() + offset + need_add_size);
+                                                              need_sync_crcs.begin() + offset,
+                                                              need_sync_crcs.begin() + offset + need_add_size);
+                    stop_msg.append(reinterpret_cast<char*>(need_sync_crcs.data()) + offset, need_add_size);
                     offset += need_add_size;
                 }
             }
@@ -216,19 +224,18 @@ FrontendController_t::_remove_frontend(
                 throw std::runtime_error("Failed to send rdma stop message");
             }
         }
+        _id_2_sync_crcs.erase(id);
         std::unordered_map<uint8_t, EgressPortEntry_t> crc_2_egressportentry;
         for (auto [active_id, id_2_crc_map] : _id_2_sync_crcs) {
-            SPDLOG_LOGGER_DEBUG(logger, "{}: ", active_id);
+            SPDLOG_LOGGER_DEBUG(logger, "Frontend {} now handles: ", active_id);
             for (auto [other_id, crcs] : id_2_crc_map) {
+                SPDLOG_LOGGER_DEBUG(logger, "{}: sync to {}", fmt::join(crcs, ","), other_id);
                 for (auto crc : crcs) {
-                    SPDLOG_LOGGER_DEBUG(logger, "{}: {}", other_id, fmt::join(crcs, ","));
                     crc_2_egressportentry[crc] = _id_2_egress_port[active_id];
                 }
             }
         }
-        _id_2_sync_crcs.erase(id);
-        _client->start_updating(crc_2_egressportentry);
-        _client->finish_updating();
+        _client->start_updating(crc_2_egressportentry, false);
     } else {
         _id_2_sync_crcs.clear();
         std::string stop_msg;
@@ -238,8 +245,7 @@ FrontendController_t::_remove_frontend(
         for (int crc = 0; crc < 256; crc++) {
             crc_2_egressportentry[crc] = _id_2_egress_port[last_id];
         }
-        _client->start_updating(crc_2_egressportentry);
-        _client->finish_updating();
+        _client->start_updating(crc_2_egressportentry, false);
         stop_msg.append(1, static_cast<char>(RDMA_STOP));
         stop_msg.append(1, static_cast<char>(id));
         stop_msg.append(1, static_cast<char>(0));
@@ -347,7 +353,7 @@ FrontendController_t::_update_rdma_info() {
             }
         }
     }
-    _client->start_updating(crc_2_egressportentry);
+    _client->start_updating(crc_2_egressportentry, true);
     _state = WAIT_RDMA_INIT;
 }
 
@@ -416,8 +422,13 @@ FrontendController_t::_main_loop() {
                 ssize_t recv_size = recv(conn_fd, recv_buffer, sizeof(recv_buffer), 0);
                 if (recv_size < 0) {
                     if (errno != EAGAIN && errno != EWOULDBLOCK) {
-                        SPDLOG_LOGGER_ERROR(logger, "Failed to receive message, {}", strerror(errno));
-                        throw std::runtime_error("Failed to receive message");
+                        if (errno == ECONNRESET) {
+                            SPDLOG_LOGGER_DEBUG(logger, "Removing frontend: {}", id);
+                            _remove_frontend(id);
+                        } else {
+                            SPDLOG_LOGGER_ERROR(logger, "Failed to receive message, {}", strerror(errno));
+                            throw std::runtime_error("Failed to receive message");
+                        }
                     }
                 }
                 else if (recv_size == 0) {
@@ -489,26 +500,18 @@ FrontendController_t::_main_loop() {
                                             continue;
                                         }
                                         added_start_msg.append(1, static_cast<char>(id));
+                                        added_start_msg.append(1, static_cast<char>(0));
                                         SPDLOG_LOGGER_DEBUG(logger, "Sending rdma start message to {}: {}", id, _updating_id);
                                         std::string start_msg = "";
                                         start_msg.append(1, static_cast<char>(RDMA_START));
                                         start_msg.append(1, static_cast<char>(1));
                                         start_msg.append(1, static_cast<char>(_updating_id));
+                                        start_msg.append(1, static_cast<char>(_id_2_need_changed_crcs[id].size()));
+                                        start_msg.append(reinterpret_cast<const char*>(_id_2_need_changed_crcs[id].data()), _id_2_need_changed_crcs[id].size());
                                         int other_fd = _id_2_socket_fd[id];
                                         if (send(other_fd, start_msg.c_str(), start_msg.size(), 0) < 0) {
                                             SPDLOG_LOGGER_ERROR(logger, "Failed to send rdma start message to {}: {}", id, _updating_id);
                                             throw std::runtime_error("Failed to send rdma start message");
-                                        }
-                                        std::string sync_msg = "";
-                                        SPDLOG_LOGGER_DEBUG(logger, "Sending sync old data message to {}: {}", id, _updating_id);
-                                        sync_msg.append(1, static_cast<char>(SYNC_OLD_DATA));
-                                        sync_msg.append(1, static_cast<char>(_updating_id));
-                                        sync_msg.append(1, static_cast<char>(_id_2_need_changed_crcs[id].size()));
-                                        sync_msg.append(reinterpret_cast<const char*>(_id_2_need_changed_crcs[id].data()), _id_2_need_changed_crcs[id].size());
-                                        SPDLOG_LOGGER_DEBUG(logger, "Sync CRCs: {}", fmt::join(_id_2_need_changed_crcs[id], ","));
-                                        if (send(other_fd, sync_msg.c_str(), sync_msg.size(), 0) < 0) {
-                                            SPDLOG_LOGGER_ERROR(logger, "Failed to send sync old data message to {}: {}", id, _updating_id);
-                                            throw std::runtime_error("Failed to send sync old data message");
                                         }
                                     }
                                     SPDLOG_LOGGER_DEBUG(logger, "Sending rdma start message to {}", _updating_id);
