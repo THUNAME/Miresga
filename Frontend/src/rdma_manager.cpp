@@ -3,7 +3,7 @@
 static auto logger = spdlog::stdout_color_mt("RDMAManager");
 
 RDMAManager::RDMAManager(
-    const char* dev_name, 
+    const char* dev_name,
     int epoll_fd
 ) {
     _epoll_fd = epoll_fd;
@@ -58,19 +58,9 @@ RDMAManager::RDMAManager(
                         _local_gid.raw[8], _local_gid.raw[9], _local_gid.raw[10], _local_gid.raw[11],
                         _local_gid.raw[12], _local_gid.raw[13], _local_gid.raw[14], _local_gid.raw[15]);
 
-    SPDLOG_LOGGER_DEBUG(logger, "Creating Completion Channel");
-    _comp_channel = ibv_create_comp_channel(_ctx);
-    if (!_comp_channel) {
-        ibv_dealloc_pd(_pd);
-        ibv_close_device(_ctx);
-        SPDLOG_LOGGER_ERROR(logger, "Failed to create Completion Channel");
-        throw std::runtime_error("Failed to create Completion Channel");
-    }
-
     SPDLOG_LOGGER_DEBUG(logger, "Creating Completion Queue");
-    _cq = ibv_create_cq(_ctx, MAX_CQ_SIZE, nullptr, _comp_channel, 0);
+    _cq = ibv_create_cq(_ctx, MAX_CQ_SIZE, nullptr, nullptr, 0);
     if (!_cq) {
-        ibv_destroy_comp_channel(_comp_channel);
         ibv_dealloc_pd(_pd);
         ibv_close_device(_ctx);
         SPDLOG_LOGGER_ERROR(logger, "Failed to create Completion Queue");
@@ -80,24 +70,10 @@ RDMAManager::RDMAManager(
     SPDLOG_LOGGER_DEBUG(logger, "Requesting CQ notification");
     if (ibv_req_notify_cq(_cq, 0)) {
         ibv_destroy_cq(_cq);
-        ibv_destroy_comp_channel(_comp_channel);
         ibv_dealloc_pd(_pd);
         ibv_close_device(_ctx);
         SPDLOG_LOGGER_ERROR(logger, "Failed to request CQ notification");
         throw std::runtime_error("Failed to request CQ notification");
-    }
-
-    SPDLOG_LOGGER_DEBUG(logger, "Adding CQ fd to epoll");
-    epoll_event ev;
-    ev.events = EPOLLIN;
-    ev.data.u32 = CQ_PRESENTER;
-    if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, _comp_channel->fd, &ev) == -1) {
-        ibv_destroy_cq(_cq);
-        ibv_destroy_comp_channel(_comp_channel);
-        ibv_dealloc_pd(_pd);
-        ibv_close_device(_ctx);
-        SPDLOG_LOGGER_ERROR(logger, "Failed to add CQ fd to epoll");
-        throw std::runtime_error("Failed to add CQ fd to epoll");
     }
 }
 
@@ -106,7 +82,6 @@ RDMAManager::~RDMAManager()
     for (auto& pair : _id_2_engines) {
         delete pair.second;
     }
-    ibv_destroy_comp_channel(_comp_channel);
     ibv_destroy_cq(_cq);
     ibv_dealloc_pd(_pd);
     ibv_close_device(_ctx);
@@ -177,7 +152,7 @@ RDMAManager::update_engine(uint8_t id, RDMAInfo_t* remote_rdma_info)
     auto it = _id_2_engines.find(id);
     if (unlikely(it == _id_2_engines.end())) {
         SPDLOG_LOGGER_ERROR(logger, "Engine ID {} not found", id);
-        throw std::runtime_error("Engine ID not found");
+        return;
     }
     it->second->init_engine(remote_rdma_info);
 }
@@ -204,12 +179,6 @@ RDMAManager::remove_engine(uint8_t id, std::unordered_map<uint8_t, std::vector<u
 {
     SPDLOG_LOGGER_DEBUG(logger, "Removing RDMA engine with ID: {}", id);
     _id_2_crcs.erase(id);
-    for (auto [id, crcs] : _id_2_crcs) {
-        id_2_crcs[id] = std::vector<uint8_t>(crcs);
-        for (auto crc : crcs) {
-            _crc_2_id[crc] = id;
-        }
-    }
     auto it = _id_2_engines.find(id);
     if (unlikely(it == _id_2_engines.end())) {
         SPDLOG_LOGGER_ERROR(logger, "Engine ID {} not found", id);
@@ -217,6 +186,13 @@ RDMAManager::remove_engine(uint8_t id, std::unordered_map<uint8_t, std::vector<u
     }
     delete it->second;
     _id_2_engines.erase(it);
+    for (auto [id, crcs] : id_2_crcs) {
+        _id_2_crcs[id].insert(_id_2_crcs[id].end(), crcs.begin(), crcs.end());
+        SPDLOG_LOGGER_DEBUG(logger, "Engine ID {} now handles CRCs: {}", id, fmt::join(_id_2_crcs[id], ","));
+        for (auto crc : crcs) {
+            _crc_2_id[crc] = id;
+        }
+    }
 }
 
 __attribute__((always_inline)) 
@@ -227,8 +203,11 @@ RDMAManager::start_engine(uint8_t id)
     auto it = _id_2_engines.find(id);
     if (unlikely(it == _id_2_engines.end())) {
         SPDLOG_LOGGER_ERROR(logger, "Engine ID {} not found", id);
-        throw std::runtime_error("Engine ID not found");
+        return;
     }
+    it->second->post_recv_wr();
+    it->second->post_recv_wr();
+    _id_2_remain_recv_wr[id] = 10;
     // Set timerfd to start.
     it->second->sync_complete();
 }
@@ -258,33 +237,19 @@ RDMAManager::sync_complete(uint8_t id) {
 }
 
 __attribute__((always_inline)) 
-std::vector<ibv_wc> 
-RDMAManager::process_cqe()
-{
-    SPDLOG_LOGGER_DEBUG(logger, "Processing CQE");
-    std::vector<ibv_wc> completions;
-    ibv_cq* cq = nullptr;
-    void* cq_context = nullptr;
-    if(likely(ibv_get_cq_event(_comp_channel, &cq, &cq_context) == 0)) {
-        ibv_ack_cq_events(cq, 1);
-        ibv_req_notify_cq(cq, 0);
-        int num_wc = 0;
-        ibv_wc wc;
-        do {
-            num_wc = ibv_poll_cq(cq, 1, &wc);
-            if (likely(num_wc > 0)) {
-                completions.push_back(wc);
-            } else if (unlikely(num_wc < 0)) {
-                SPDLOG_LOGGER_ERROR(logger, "Failed to poll CQ");
-                throw std::runtime_error("Failed to poll CQ");
-            }
-        } while(num_wc != 0);
-    } else {
-        SPDLOG_LOGGER_ERROR(logger, "Failed to get CQ event");
-        throw std::runtime_error("Failed to get CQ event");
+ibv_wc*
+RDMAManager::poll_cq() {
+    ibv_wc* wc = new ibv_wc;
+    int ne = ibv_poll_cq(_cq, 1, wc);
+    if (ne < 0) {
+        SPDLOG_LOGGER_ERROR(logger, "Failed to poll CQ");
+        throw std::runtime_error("Failed to poll CQ");
+    } else if (ne == 0) {
+        // No completion
+        delete wc;
+        return nullptr;
     }
-    SPDLOG_LOGGER_DEBUG(logger, "Processed {} completions", completions.size());
-    return completions;
+    return wc;
 }
 
 __attribute__((always_inline)) 
@@ -293,7 +258,7 @@ RDMAManager::get_recv_addr(uint8_t id) {
     auto it = _id_2_engines.find(id);
     if (unlikely(it == _id_2_engines.end())) {
         SPDLOG_LOGGER_ERROR(logger, "Engine ID {} not found", id);
-        throw std::runtime_error("Engine ID not found");
+        return nullptr;
     }
     return it->second->get_recv_addr();
 }
@@ -304,7 +269,7 @@ RDMAManager::add_old_flow_data(uint8_t id, std::vector<MiresgaOFTEntry_t>& data_
     auto it = _id_2_engines.find(id);
     if (unlikely(it == _id_2_engines.end())) {
         SPDLOG_LOGGER_ERROR(logger, "Engine ID {} not found", id);
-        throw std::runtime_error("Engine ID not found");
+        return;
     }
     it->second->add_flow_data(data_vec);
 }
@@ -312,18 +277,18 @@ RDMAManager::add_old_flow_data(uint8_t id, std::vector<MiresgaOFTEntry_t>& data_
 __attribute__((always_inline))
 void 
 RDMAManager::add_flow_data(MiresgaFlowData_t* flow_data) {
-    SPDLOG_LOGGER_INFO(logger, "Adding flow data to RDMA Manager");
+    SPDLOG_LOGGER_DEBUG(logger, "Adding flow data to RDMA Manager");
     uint8_t crc = flow_data->entry_data.key.crc;
     auto crc_it = _crc_2_id.find(crc);
     if (crc_it == _crc_2_id.end()) {
         SPDLOG_LOGGER_ERROR(logger, "No RDMA engine handles CRC {:02x}", crc);
-        throw std::runtime_error("No RDMA engine handles this CRC");
+        return;
     }
     uint8_t id = crc_it->second;
     auto it = _id_2_engines.find(id);
     if (unlikely(it == _id_2_engines.end())) {
         SPDLOG_LOGGER_ERROR(logger, "Engine ID {} not found", id);
-        throw std::runtime_error("Engine ID not found");
+        return;
     }
     it->second->add_flow_data(flow_data);
 }
@@ -335,13 +300,26 @@ RDMAManager::del_flow_data(MiresgaFlowData_t* flow_data) {
     auto crc_it = _crc_2_id.find(crc);
     if (crc_it == _crc_2_id.end()) {
         SPDLOG_LOGGER_ERROR(logger, "No RDMA engine handles CRC {:02x}", crc);
-        throw std::runtime_error("No RDMA engine handles this CRC");
+        return;
     }
     uint8_t id = crc_it->second;
     auto it = _id_2_engines.find(id);
     if (unlikely(it == _id_2_engines.end())) {
         SPDLOG_LOGGER_ERROR(logger, "Engine ID {} not found", id);
-        throw std::runtime_error("Engine ID not found");
+        return;
     }
     it->second->del_flow_data(flow_data);
+}
+
+__attribute__((always_inline))
+void
+RDMAManager::sub_remain_recv_wr(uint8_t id) {
+    --_id_2_remain_recv_wr[id];
+    if (_id_2_remain_recv_wr[id] < 5) {
+        auto it = _id_2_engines.find(id);
+        if (it != _id_2_engines.end()) {
+            it->second->post_recv_wr();
+            _id_2_remain_recv_wr[id] += 5;
+        }
+    }
 }

@@ -23,12 +23,12 @@ private:
     inline static RDMAManager* _instance = nullptr;
     uint8_t _local_id;
     std::unordered_map<uint8_t, RDMAEngine*> _id_2_engines;
+    std::unordered_map<uint8_t, uint8_t> _id_2_remain_recv_wr;
     std::unordered_map<uint8_t, std::vector<uint8_t>> _id_2_crcs;
     std::unordered_map<uint8_t, uint8_t> _crc_2_id;
     ibv_context* _ctx;
     ibv_pd* _pd;
     ibv_gid _local_gid;
-    ibv_comp_channel* _comp_channel;
     ibv_cq* _cq;
     int _epoll_fd;
     volatile bool _updating_flag;
@@ -49,7 +49,8 @@ public:
     void add_old_flow_data(uint8_t id, std::vector<MiresgaOFTEntry_t>& data_vec);
     void add_flow_data(MiresgaFlowData_t* flow_data);
     void del_flow_data(MiresgaFlowData_t* flow_data);
-    std::vector<ibv_wc> process_cqe();
+    ibv_wc* poll_cq();
+    void sub_remain_recv_wr(uint8_t id);
     void* get_recv_addr(uint8_t id);
 };
 

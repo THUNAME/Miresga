@@ -102,27 +102,42 @@ int main(int argc, char** argv) {
         log_file << prev_timestamp << "," << prev_ibytes << "," << prev_obytes << std::endl;
         log_file.flush();
 
-        // while (true) {
-        //     FlowTable* flow_table = FlowTable::get_instance();
-        //     rte_eth_stats stats;
-        //     int ret = rte_eth_stats_get(DPDKManager::get_instance()->port_id, &stats);
-        //     SPDLOG_INFO("ipackets: {}", stats.ipackets - prev_ipackets);
-        //     SPDLOG_INFO("opackets: {}", stats.opackets - prev_opackets);
-        //     SPDLOG_INFO("ierrors: {}", stats.ierrors - prev_ierrors);
-        //     SPDLOG_INFO("oerrors: {}", stats.oerrors - prev_oerrors);
-        //     prev_ipackets = stats.ipackets;
-        //     prev_opackets = stats.opackets;
-        //     prev_ierrors = stats.ierrors;
-        //     prev_oerrors = stats.oerrors;
-        //     for (int i = 0; i < dpdk_config.queue_size; ++i) {
-        //         SPDLOG_INFO("Queue {}: ipackets: {}, opackets: {}", i, stats.q_ipackets[i] - prev_q_ipackets[i], stats.q_opackets[i] - prev_q_opackets[i]);
-        //         SPDLOG_INFO("Queue {}: errors: {}", i, stats.q_errors[i] - prev_q_errors[i]);
-        //         prev_q_ipackets[i] = stats.q_ipackets[i];
-        //         prev_q_opackets[i] = stats.q_opackets[i];
-        //         prev_q_errors[i] = stats.q_errors[i];
-        //     }
-        //     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-        // }
+        while (true) {
+            FlowTable* flow_table = FlowTable::get_instance();
+            rte_eth_stats stats;
+            int ret = rte_eth_stats_get(DPDKManager::get_instance()->port_id, &stats);
+            SPDLOG_INFO("ipackets: {}", stats.ipackets - prev_ipackets);
+            SPDLOG_INFO("opackets: {}", stats.opackets - prev_opackets);
+            SPDLOG_INFO("ierrors: {}", stats.ierrors - prev_ierrors);
+            SPDLOG_INFO("oerrors: {}", stats.oerrors - prev_oerrors);
+            prev_ipackets = stats.ipackets;
+            prev_opackets = stats.opackets;
+            prev_ierrors = stats.ierrors;
+            prev_oerrors = stats.oerrors;
+            for (int i = 0; i < dpdk_config.queue_size; ++i) {
+                SPDLOG_INFO("Queue {}: ipackets: {}, opackets: {}", i, stats.q_ipackets[i] - prev_q_ipackets[i], stats.q_opackets[i] - prev_q_opackets[i]);
+                SPDLOG_INFO("Queue {}: errors: {}", i, stats.q_errors[i] - prev_q_errors[i]);
+                prev_q_ipackets[i] = stats.q_ipackets[i];
+                prev_q_opackets[i] = stats.q_opackets[i];
+                prev_q_errors[i] = stats.q_errors[i];
+            }
+            uint64_t curr_timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            uint64_t interval = curr_timestamp - prev_timestamp;
+            if (interval == 0) {
+                continue;
+            }
+            prev_timestamp = curr_timestamp;
+            uint64_t ibytes = stats.ibytes;
+            uint64_t obytes = stats.obytes;
+            uint64_t bps_in = (ibytes - prev_ibytes) * 8 * 1000 / interval;
+            uint64_t bps_out = (obytes - prev_obytes) * 8 * 1000 / interval;
+            prev_ibytes = ibytes;
+            prev_obytes = obytes;
+            log_file << curr_timestamp << "," << bps_in << "," << bps_out << std::endl;
+            log_file.flush();
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
     });
     #endif
     while (true) {

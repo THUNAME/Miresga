@@ -100,6 +100,16 @@ bool ControllerClient::_update_info()
                 uint8_t remote_id = _recv_buffer[now_bytes];
                 now_bytes++;
                 _rdma_manager->start_engine(remote_id);
+                uint8_t num_sync_crcs = _recv_buffer[now_bytes];
+                now_bytes++;
+                std::vector<uint8_t> crcs(reinterpret_cast<uint8_t*>(_recv_buffer + now_bytes), 
+                                          reinterpret_cast<uint8_t*>(_recv_buffer + now_bytes + num_sync_crcs));
+                SPDLOG_LOGGER_DEBUG(logger, "Syncing old {} CRCs to RDMA engine {}. CRCs: {}", num_sync_crcs, remote_id, fmt::join(crcs, ", "));
+                now_bytes += num_sync_crcs;
+                for (auto& crc:crcs) {
+                    std::vector<MiresgaOFTEntry_t> data_vec = _flow_table->get_crc_entries(crc);
+                    _rdma_manager->add_old_flow_data(remote_id, data_vec);
+                }
             }
             break;
         }
@@ -119,6 +129,10 @@ bool ControllerClient::_update_info()
                 now_bytes++;
                 id_2_crcs[update_id] = std::vector<uint8_t>(_recv_buffer + now_bytes, _recv_buffer + now_bytes + num_crcs);
                 now_bytes += num_crcs;
+                for (auto crc : id_2_crcs[update_id]) {
+                    std::vector<MiresgaOFTEntry_t> data_vec = _flow_table->get_crc_entries(crc);
+                    _rdma_manager->add_old_flow_data(update_id, data_vec);
+                }
             }
             _rdma_manager->remove_engine(remote_id, id_2_crcs);
             break;
@@ -223,54 +237,53 @@ void ControllerClient::_main_loop()
                 uint8_t id = events[i].data.u32 & 0xFF;
                 _rdma_manager->sync_states(id);
             }
-            else if(events[i].data.u32 == CQ_PRESENTER) {
-                SPDLOG_LOGGER_DEBUG(logger, "Processing RDMA completions");
-                std::vector<ibv_wc> completions = _rdma_manager->process_cqe();
-                for (const auto& wc : completions) {
-                    uint64_t remote_id = wc.wr_id;
-                    if (wc.status != IBV_WC_SUCCESS) {
-                        SPDLOG_LOGGER_ERROR(logger, "RDMA operation failed for engine {}: {}", remote_id, ibv_wc_status_str(wc.status));
-                        // Notify Tofino to stop using this RDMA engine
-                        char error_msg[2];
-                        error_msg[0] = static_cast<char>(MiresgaOperationType_t::RDMA_STOP);
-                        error_msg[1] = static_cast<char>(remote_id);
-                        if (_connector->send_message(error_msg, sizeof(error_msg)) != MiresgaStatus_t::OK) {
-                            throw std::runtime_error("Failed to send RDMA_STOP message");
-                        }
-                    } else if (wc.opcode == IBV_WC_RECV_RDMA_WITH_IMM) {
-                        SPDLOG_LOGGER_DEBUG(logger, "Received RDMA with immediate from engine {}", remote_id);
-                        uint32_t num_operation = wc.imm_data;
-                        void* recv_buffer = _rdma_manager->get_recv_addr(remote_id);
-                        SPDLOG_LOGGER_INFO(logger, "Number of operations to process: {}", num_operation);
-                        std::vector<Operation_t> operations(reinterpret_cast<Operation_t*>(recv_buffer), 
-                                                            reinterpret_cast<Operation_t*>(recv_buffer) + num_operation);
-                        for (uint32_t i = 0; i < num_operation; ++i) {
-                            Operation_t& operation = operations[i];
-                            if (operation.type == OperationType_t::INSERT) {
-                                MiresgaFlowData_t* flow_data = new MiresgaFlowData_t;
-                                flow_data->entry_data = operation.entry;
-                                flow_data->state = static_cast<FlowState_t>(operation.entry.data.flow_state);
-                                _flow_table->insert_flow(flow_data->entry_data.key, flow_data);
-                            } else if (operation.type == OperationType_t::DELETE) {
-                                _flow_table->remove_flow(operation.entry.key);
-                            } else {
-                                SPDLOG_LOGGER_WARN(logger, "Unknown operation type {}", static_cast<int>(operation.type));
-                            }
-                        }
-                    }
-                    else if (wc.opcode == IBV_WC_RDMA_WRITE) {
-                        SPDLOG_LOGGER_DEBUG(logger, "RDMA write completed for engine {}", remote_id);
-                        _rdma_manager->sync_complete(remote_id);
-                    }
-                    else {
-                        SPDLOG_LOGGER_WARN(logger, "Unknown completion opcode {} for engine {}", 
-                                           static_cast<int>(wc.opcode), remote_id);
-                    }
-                }
-            }
         }
     }
     SPDLOG_LOGGER_WARN(logger, "ControllerClient main loop exited");
+}
+
+void
+ControllerClient::_poll_cq() {
+    while (!_exit_flag) {
+        ibv_wc* wc = _rdma_manager->poll_cq();
+        if (wc != nullptr) {
+            uint8_t id = static_cast<uint8_t>(wc->wr_id);
+            if (wc->status != IBV_WC_SUCCESS) {
+                SPDLOG_LOGGER_ERROR(logger, "Completion with error. WC status: {}, RDMA Engine ID: {}", ibv_wc_status_str(wc->status), id);
+                char err_msg[2];
+                err_msg[0] = static_cast<char>(MiresgaOperationType_t::RDMA_STOP);
+                err_msg[1] = static_cast<char>(id);
+                if (_connector->send_message(err_msg, 2) != MiresgaStatus_t::OK) {
+                    SPDLOG_LOGGER_ERROR(logger, "Failed to send RDMA_STOP message to Tofino");
+                }
+            } else if(wc->opcode == IBV_WC_RECV_RDMA_WITH_IMM){
+                uint32_t imm_data = wc->imm_data;
+                SPDLOG_LOGGER_DEBUG(logger, "Received RDMA with IMM. RDMA Engine ID: {}, IMM data: {}", id, imm_data);
+                void* recv_addr = _rdma_manager->get_recv_addr(id);
+                std::vector<Operation_t> operations(reinterpret_cast<Operation_t*>(recv_addr), 
+                                                    reinterpret_cast<Operation_t*>(recv_addr) + imm_data);
+                for (auto& op : operations) {
+                    if (op.type == OperationType_t::INSERT) {
+                        MiresgaFlowData_t* flow_data = new MiresgaFlowData_t;
+                        flow_data->entry_data = op.entry;
+                        flow_data->state = static_cast<FlowState_t>(op.entry.data.flow_state);
+                        _flow_table->insert_flow(flow_data->entry_data.key, flow_data);
+                    } else if (op.type == OperationType_t::DELETE) {
+                        _flow_table->remove_flow(op.entry.key);
+                    } else {
+                        SPDLOG_LOGGER_ERROR(logger, "Unknown operation type in RDMA message. RDMA Engine ID: {}", id);
+                    }
+                }
+                _rdma_manager->sub_remain_recv_wr(id);
+            } else if (wc->opcode == IBV_WC_RDMA_WRITE) {
+                SPDLOG_LOGGER_DEBUG(logger, "RDMA write completed. RDMA Engine ID: {}", id);
+                _rdma_manager->sync_complete(id);
+            } else {
+                SPDLOG_LOGGER_ERROR(logger, "Unknown WC opcode: {}. RDMA Engine ID: {}", static_cast<int>(wc->opcode), id);
+            }
+            delete wc;
+        }
+    }
 }
 
 ControllerClient::ControllerClient(char* switch_ip, uint16_t switch_port, 
@@ -332,6 +345,8 @@ ControllerClient::ControllerClient(char* switch_ip, uint16_t switch_port,
     SPDLOG_LOGGER_DEBUG(logger, "Timer added to epoll");
     _client_thread = std::thread(&ControllerClient::_main_loop, this);
     _client_thread.detach();
+    _poll_thread = std::thread(&ControllerClient::_poll_cq, this);
+    _poll_thread.detach();
 }
 
 ControllerClient::~ControllerClient()

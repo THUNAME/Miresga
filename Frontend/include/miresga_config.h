@@ -5,10 +5,10 @@
 #define DEFAULT_DPDK_CONFIG_PATH "../config/dpdk.json"
 #define ENTRY_BATCH_SIZE 40
 #define QUEUE_THRESHOLD  20
-#define RDMA_BUFFER_SIZE (65536 * 10)
+#define RDMA_BUFFER_SIZE (262144 * 10)
 #define MAX_CQ_SIZE           16
 #define CQ_PRESENTER          0x0a0a0a0a
 #define TIMER_MASK            0xa0a0a000
-#define DEFAULT_FLOW_MAP_SIZE 65536
+#define DEFAULT_FLOW_MAP_SIZE 262144
 
 #endif

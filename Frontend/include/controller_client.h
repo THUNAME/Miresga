@@ -30,12 +30,14 @@ private:
     RuleManager* _rule_manager;
     RDMAManager* _rdma_manager;
     std::thread _client_thread;
+    std::thread _poll_thread;
     bool _exit_flag;
     char _recv_buffer[ETH_FRAME_LEN];
     int _epoll_fd;
     int _offload_timerfd;
     bool _update_info();
     void _main_loop();
+    void _poll_cq();
     ControllerClient() = delete;
     ControllerClient(ControllerClient const&) = delete;
     ControllerClient& operator=(ControllerClient const&) = delete;

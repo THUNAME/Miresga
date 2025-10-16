@@ -18,7 +18,7 @@
 class RDMAEngine
 {
 private:
-    uint8_t _id;
+    uint8_t _remote_id;
     ibv_send_wr* bad_send_wr;
     ibv_recv_wr* bad_recv_wr;
     RDMAInfo_t* _local_rdma_info;
@@ -37,7 +37,7 @@ private:
     void _change_qp_to_rtr();
     void _change_qp_to_rts();
 public:
-    RDMAEngine(uint8_t id, ibv_pd* pd, ibv_cq* cq, ibv_gid& gid, int epoll_fd);   
+    RDMAEngine(uint8_t remote_id, ibv_pd* pd, ibv_cq* cq, ibv_gid& gid, int epoll_fd);   
     ~RDMAEngine();
     void init_engine(RDMAInfo_t* remote_rdma_info);
     void add_flow_data(MiresgaFlowData_t* flow_data);
@@ -45,6 +45,7 @@ public:
     void add_flow_data(std::vector<MiresgaOFTEntry_t>& data_vec);
     void sync_start();
     void sync_complete();
+    void post_recv_wr();
     RDMAInfo_t* get_local_rdma_info();
     void* get_recv_addr();
 };

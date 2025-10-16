@@ -9,7 +9,7 @@ RDMAEngine::_create_qp(
     ibv_cq* cq
 ) 
 {
-    SPDLOG_LOGGER_DEBUG(logger, "Creating Queue Pair for RDMA Engine ID: {}", _id);
+    SPDLOG_LOGGER_DEBUG(logger, "Creating Queue Pair for RDMA Engine ID: {}", _remote_id);
     ibv_qp_init_attr qp_init_attr;
     memset(&qp_init_attr, 0, sizeof(qp_init_attr));
     qp_init_attr.send_cq = cq;
@@ -23,18 +23,18 @@ RDMAEngine::_create_qp(
     qp_init_attr.sq_sig_all = 1;
     _qp = ibv_create_qp(pd, &qp_init_attr);
     if (unlikely(!_qp)) {
-        SPDLOG_LOGGER_ERROR(logger, "Failed to create Queue Pair for RDMA Engine ID: {}", _id);
+        SPDLOG_LOGGER_ERROR(logger, "Failed to create Queue Pair for RDMA Engine ID: {}", _remote_id);
         throw std::runtime_error("Failed to create Queue Pair");
     }
     _local_rdma_info->qpn = _qp->qp_num;
-    SPDLOG_LOGGER_DEBUG(logger, "Local QPN for RDMA Engine ID {}: 0x{:x}", _id, _local_rdma_info->qpn);
+    SPDLOG_LOGGER_DEBUG(logger, "Local QPN for RDMA Engine ID {}: 0x{:x}", _remote_id, _local_rdma_info->qpn);
 }
 
 __attribute__((always_inline)) 
 void 
 RDMAEngine::_change_qp_to_init() 
 {
-    SPDLOG_LOGGER_DEBUG(logger, "Changing Queue Pair state to INIT for RDMA Engine ID: {}", _id);
+    SPDLOG_LOGGER_DEBUG(logger, "Changing Queue Pair state to INIT for RDMA Engine ID: {}", _remote_id);
     ibv_qp_attr qp_attr;
     memset(&qp_attr, 0, sizeof(qp_attr));
     qp_attr.qp_state = IBV_QPS_INIT;
@@ -49,7 +49,7 @@ __attribute__((always_inline))
 void 
 RDMAEngine::_change_qp_to_rtr() 
 {
-    SPDLOG_LOGGER_DEBUG(logger, "Changing Queue Pair state to RTR for RDMA Engine ID: {}", _id);
+    SPDLOG_LOGGER_DEBUG(logger, "Changing Queue Pair state to RTR for RDMA Engine ID: {}", _remote_id);
     ibv_qp_attr qp_attr;
     memset(&qp_attr, 0, sizeof(qp_attr));
     qp_attr.qp_state = IBV_QPS_RTR;
@@ -73,7 +73,7 @@ __attribute__((always_inline))
 void 
 RDMAEngine::_change_qp_to_rts() 
 {
-    SPDLOG_LOGGER_DEBUG(logger, "Changing Queue Pair state to RTS for RDMA Engine ID: {}", _id);
+    SPDLOG_LOGGER_DEBUG(logger, "Changing Queue Pair state to RTS for RDMA Engine ID: {}", _remote_id);
     ibv_qp_attr qp_attr;
     memset(&qp_attr, 0, sizeof(qp_attr));
     qp_attr.qp_state = IBV_QPS_RTS;
@@ -90,42 +90,42 @@ RDMAEngine::_change_qp_to_rts()
 
 __attribute__((always_inline)) 
 RDMAEngine::RDMAEngine(
-    uint8_t id, 
+    uint8_t remote_id, 
     ibv_pd* pd, 
     ibv_cq* cq, 
     ibv_gid& gid,
     int epoll_fd
 ) {
-    _id = id;
+    _remote_id = remote_id;
     _local_rdma_info = new RDMAInfo_t();
     _send_buffer = reinterpret_cast<void*>(new char[RDMA_BUFFER_SIZE]);
     _send_mr = ibv_reg_mr(pd, _send_buffer, RDMA_BUFFER_SIZE, IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ);
     if (unlikely(!_send_mr)) {
-        SPDLOG_LOGGER_ERROR(logger, "Failed to register memory region for RDMA Engine ID: {}", _id);
+        SPDLOG_LOGGER_ERROR(logger, "Failed to register memory region for RDMA Engine ID: {}", _remote_id);
         throw std::runtime_error("Failed to register memory region");
     }
     _recv_buffer = reinterpret_cast<void*>(new char[RDMA_BUFFER_SIZE]);
     _recv_mr = ibv_reg_mr(pd, _recv_buffer, RDMA_BUFFER_SIZE, IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ);
     if (unlikely(!_recv_mr)) {
-        SPDLOG_LOGGER_ERROR(logger, "Failed to register memory region for RDMA Engine ID: {}", _id);
+        SPDLOG_LOGGER_ERROR(logger, "Failed to register memory region for RDMA Engine ID: {}", _remote_id);
         throw std::runtime_error("Failed to register memory region");
     }
     _local_rdma_info->addr = reinterpret_cast<uint64_t>(_recv_mr->addr);
     _local_rdma_info->rkey = _recv_mr->rkey;
     memcpy(&_local_rdma_info->gid, &gid, sizeof(ibv_gid));
-    SPDLOG_LOGGER_DEBUG(logger, "Local RDMA Info for Engine ID {}: RECV ADDR: 0x{:x}, RECV RKEY: 0x{:x}", _id, _local_rdma_info->addr, _local_rdma_info->rkey);
+    SPDLOG_LOGGER_DEBUG(logger, "Local RDMA Info for Engine ID {}: RECV ADDR: 0x{:x}, RECV RKEY: 0x{:x}", _remote_id, _local_rdma_info->addr, _local_rdma_info->rkey);
     _create_qp(pd, cq);
     _change_qp_to_init();
     _timer_fd = timerfd_create(CLOCK_MONOTONIC, TFD_NONBLOCK | TFD_CLOEXEC);
     if (_timer_fd == -1) {
-        SPDLOG_LOGGER_ERROR(logger, "Failed to create timerfd for RDMA Engine ID: {}", _id);
+        SPDLOG_LOGGER_ERROR(logger, "Failed to create timerfd for RDMA Engine ID: {}", _remote_id);
         throw std::runtime_error("Failed to create timerfd");
     }
     epoll_event ev;
     ev.events = EPOLLIN;
-    ev.data.u32 = _id | TIMER_MASK;
+    ev.data.u32 = _remote_id | TIMER_MASK;
     if (epoll_ctl(epoll_fd, EPOLL_CTL_ADD, _timer_fd, &ev) == -1) {
-        SPDLOG_LOGGER_ERROR(logger, "Failed to add timerfd to epoll for RDMA Engine ID: {}", _id);
+        SPDLOG_LOGGER_ERROR(logger, "Failed to add timerfd to epoll for RDMA Engine ID: {}", _remote_id);
         throw std::runtime_error("Failed to add timerfd to epoll");
     }
     memset(&_timer_value, 0, sizeof(_timer_value));
@@ -164,21 +164,14 @@ RDMAEngine::init_engine(
 ) 
 {
     if (unlikely(remote_rdma_info == nullptr)) {
-        SPDLOG_LOGGER_ERROR(logger, "Remote RDMA info is null for Engine ID: {}", _id);
+        SPDLOG_LOGGER_ERROR(logger, "Remote RDMA info is null for Engine ID: {}", _remote_id);
         throw std::runtime_error("Remote RDMA info is null");
     }
     SPDLOG_LOGGER_DEBUG(logger, "Initializing RDMA Engine ID: {} with Remote QPN: 0x{:x}, Remote ADDR: 0x{:x}, Remote RKEY: 0x{:x}", 
-                        _id, remote_rdma_info->qpn, remote_rdma_info->addr, remote_rdma_info->rkey);
+                        _remote_id, remote_rdma_info->qpn, remote_rdma_info->addr, remote_rdma_info->rkey);
     _remote_rdma_info = remote_rdma_info;
     _change_qp_to_rtr();
     _change_qp_to_rts();
-    ibv_recv_wr recv_wr;
-    memset(&recv_wr, 0, sizeof(recv_wr));
-    recv_wr.wr_id = _id;
-    recv_wr.next = nullptr;
-    recv_wr.num_sge = 0;
-    recv_wr.sg_list = nullptr;
-    ibv_post_recv(_qp, &recv_wr, &bad_recv_wr);
 }
 
 __attribute__((always_inline))
@@ -186,7 +179,7 @@ void
 RDMAEngine::add_flow_data(
     MiresgaFlowData_t* flow_data
 ) {
-    SPDLOG_LOGGER_INFO(logger, "Adding flow data to RDMA Engine ID: {}", _id);
+    SPDLOG_LOGGER_DEBUG(logger, "Adding flow data to RDMA Engine ID: {}", _remote_id);
     Operation_t operation;
     operation.type = INSERT;
     operation.entry = flow_data->entry_data;
@@ -218,10 +211,9 @@ RDMAEngine::sync_start(
 ) {
     uint64_t exp;
     if (read(_timer_fd, &exp, sizeof(uint64_t)) != sizeof(uint64_t)) {
-        SPDLOG_LOGGER_ERROR(logger, "Failed to read timerfd for RDMA Engine ID: {}", _id);
+        SPDLOG_LOGGER_ERROR(logger, "Failed to read timerfd for RDMA Engine ID: {}", _remote_id);
         throw std::runtime_error("Failed to read timerfd");
     }
-    // SPDLOG_LOGGER_DEBUG(logger, "Syncing RDMA Engine ID: {}", _id);
     ibv_sge send_sge;
     uint32_t imm_data = static_cast<uint32_t>(_operation_queue.get_all_operations(_send_buffer));
     ssize_t send_len = imm_data * sizeof(Operation_t);
@@ -229,24 +221,15 @@ RDMAEngine::sync_start(
         send_sge.addr = reinterpret_cast<uint64_t>(_send_mr->addr);
         send_sge.length = send_len;
         send_sge.lkey = _send_mr->lkey;
-        SPDLOG_LOGGER_INFO(logger, "Sending {} bytes of flow data for RDMA Engine ID: {}", send_sge.length, _id);
+        SPDLOG_LOGGER_DEBUG(logger, "Sending {} bytes of flow data for RDMA Engine ID: {}", send_sge.length, _remote_id);
     } else {
-        SPDLOG_LOGGER_DEBUG(logger, "No data to send for RDMA Engine ID: {}", _id);
         // No sge to send, reset the timer. Otherwise, the timer will never be restarted.
-        #ifdef DEBUG
-        // Test if RDMA is working.
-        send_sge.addr = reinterpret_cast<uint64_t>(_send_mr->addr);
-        send_sge.length = 4096;
-        send_sge.lkey = _send_mr->lkey;
-        imm_data = 0;
-        #else
         timerfd_settime(_timer_fd, 0, &_timer_value, nullptr); // Restart the timer for the next sync
         return;
-        #endif
     }
     ibv_send_wr send_wr;
     memset(&send_wr, 0, sizeof(send_wr));
-    send_wr.wr_id = _id;
+    send_wr.wr_id = _remote_id;
     send_wr.sg_list = &send_sge;
     send_wr.num_sge = 1;
     send_wr.opcode = IBV_WR_RDMA_WRITE_WITH_IMM;
@@ -256,14 +239,6 @@ RDMAEngine::sync_start(
     send_wr.send_flags = IBV_SEND_SIGNALED;
     send_wr.next = nullptr;
     ibv_post_send(_qp, &send_wr, &bad_send_wr);
-    // Post a receive request to avoid the receive queue being empty
-    ibv_recv_wr recv_wr;
-    memset(&recv_wr, 0, sizeof(recv_wr));
-    recv_wr.wr_id = _id;
-    recv_wr.next = nullptr;
-    recv_wr.num_sge = 0;
-    recv_wr.sg_list = nullptr;
-    ibv_post_recv(_qp, &recv_wr, &bad_recv_wr);
 }
 
 __attribute__((always_inline)) 
@@ -285,7 +260,26 @@ void
 RDMAEngine::sync_complete() 
 {
     if (timerfd_settime(_timer_fd, 0, &_timer_value, nullptr) == -1) {
-        SPDLOG_LOGGER_ERROR(logger, "Failed to set timerfd for RDMA Engine ID: {}", _id);
+        SPDLOG_LOGGER_ERROR(logger, "Failed to set timerfd for RDMA Engine ID: {}", _remote_id);
         throw std::runtime_error("Failed to set timerfd");
+    }
+}
+
+__attribute__((always_inline))
+void
+RDMAEngine::post_recv_wr() 
+{
+    #pragma unroll
+    for (int i = 0; i < 5; ++i) {
+        ibv_recv_wr recv_wr;
+        memset(&recv_wr, 0, sizeof(recv_wr));
+        recv_wr.wr_id = _remote_id; // Use remote_id to identify the engine in the completion
+        recv_wr.sg_list = nullptr;
+        recv_wr.num_sge = 0;
+        recv_wr.next = nullptr;
+        if (ibv_post_recv(_qp, &recv_wr, &bad_recv_wr)) {
+            SPDLOG_LOGGER_ERROR(logger, "Failed to post receive WR for RDMA Engine ID: {}", _remote_id);
+            throw std::runtime_error("Failed to post receive WR");
+        }
     }
 }
