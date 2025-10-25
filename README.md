@@ -11,10 +11,11 @@ This repository hosts Miresga, a hybrid and high-performance layer-7 load balanc
 We have only fully tested our prototype on SDE 9.4.0. While our data plane was successfully compiled on a virtual machine with SDE 9.13.1, the API for the control plane seems to be inconsistent. Therefore, using a higher version may require some modifications to the code.
 
 ### 2. Front-end Server
-We tested on Ubuntu 20.04 with the 5.15.0-134-generic kernel and DPDK-24.11. Additionally, the following are required to build the project: **cmake**, **meson**, and **ninja**. You can install them by running:
+We tested on Ubuntu 24.04 with the 6.8.0-86-generic kernel and DPDK in DOCA-2.9.3. Additionally, `cmake` is required to build the project:  You can install it by running:
 ```bash
-sudo apt install build-essential meson ninja cmake
+sudo apt install cmake
 ```
+We also use `boost.unordered.concurrent_flat_map` as our concurrent hash map. We only test on Version 1.89.0. So you may need to download and install `boost` from [here](https://www.boost.org/releases/latest/).
 
 ### 3. Back-end Agent
 To run the backend agent, you may need to install the following:
@@ -29,7 +30,7 @@ sudo apt install clang-11 llvm-11
 ```
 and then modify the Makefile in the Backend directory.
 
-We have only tested the XDP native mode on Mellanox CX6 NICs and have not tested with other NICs, so additional modifications may be required for other cards.
+We have only tested the XDP native mode on Mellanox CX6 NICs and Intel E810C and have not tested with other NICs, so additional modifications may be required for other cards.
 
 ## III. Quick Start
 First, clone the repository:
@@ -37,47 +38,71 @@ First, clone the repository:
 git clone --recurse-submodules https://github.com/THUNAME/Miresga.git 
 git submodule init
 ```
-### 1. Programmable Switch
-#### a. Data plane
+### 1. Build
+#### a. Programmable Switch Data plane
 On SDE 9.4.0, we used the following code to compile:
 ```bash
 cd $SDE
-./p4_build.sh /path/to/Miresga/Switch/data_plane/l7lb_switch.p4
+./p4_build.sh /path/to/Miresga/Switch/data_plane/MiresgaSwitchDataPlane.p4
 ```
-#### b. Control plane
-First, compile the cJSON.
-```bash
-cd /path/to/Miresga/Switch/control_plane/third_party/cJSON
-make
-sudo make install
-```
-Then, compile the control_plane.
+#### b. Programmable Switch Control plane
 ```bash
 cd /path/to/Miresga/Switch/control_plane
-make
-```
-#### c. Running
-```bash
-cd /path/to/Miresga/Switch/control_plane
-./l7lb_control_plane
+mkdir build
+cd build
+cmake ..
 ```
 
-### 2. Front-end Server
+#### c. Front-end Server
 ```bash
 cd /path/to/Miresga/Frontend
-meson build
-ninja -C build
+mkdir build
 cd build
-sudo su
-./L7LB_Server
+cmake ..
 ```
 
-### 3. Back-end Server
+#### d. Back-end Server
 ```bash
 cd /path/to/Miresga/Backend
 make
+```
+
+### 2. Running
+Firstly, please update [Switch/control_plane/config.json](Switch/control_plane/config.json), [Frontend/config/controller_config.json](Frontend/config/controller_config.json), [Frontend/config/dpdk_config.json](Frontend/config/dpdk_config.json), [Frontend/config/rdma_config.json](Frontend/config/rdma_config.json).
+#### a. Programmable Switch
+Before running, make sure that the `bf_kpkt` module is inserted and the corresponding iface is set to the Migration Controller IP.
+```bash
+lsmod | grep bf_kpkt
+```
+If `bf_kpkt` is not inserted, using the following command to insert:
+```bash
+$SDE_INSTALL/bin/bf_kpkt_mod_load $SDE_INSTALL
+ifconfig ${new_iface} up
+ifconfig ${new_iface} ${controller ip}
+```
+In SDE 9.4.0, `${new_iface}` is `enp4s0`. In other version, it may be other name.
+
+Then just run:
+
+```bash
+cd /path/to/Miresga/Switch/control_plane
+python generate_config.py
 cd build
-sudo su
+./MiresgaSwitchControlPlane
+```
+
+#### b. Front-end Server
+Make sure that you have allocated hugepages.
+``` bash
+cd /path/to/Miresga/Frontend/build
+./MiresgaFrontend ${dpdk_arg}
+```
+We recommand you set the arg `-l` to all the `pkt_processor_id`  that you have setted in the config file and another one core. Set `--main-lcore` to the another one core. For other dpdk args, please follow the DPDK manual.
+
+#### c.Back-end Server
+Run:
+``` bash
+cd /path/to/Miresga/Backend/build
 ./xdp_loader ${iface_name}
 ```
 You need to replace `${iface_name}` with the actual network interface name.
@@ -92,9 +117,9 @@ sh unload.sh ${iface_name}
 
 This project includes the following third-party libraries as Git submodules:
 
-- **[cJSON](https://github.com/DaveGamble/cJSON)**
-- **[libcuckoo](https://github.com/efficient/libcuckoo)**
+- **[fmt](https://github.com/fmtlib/fmt)**
 - **[json](https://github.com/nlohmann/json)**
+- **[spdlog](https://github.com/gabime/spdlog)**
 - **[concurrentqueue](https://github.com/cameron314/concurrentqueue)**
 
 Please refer to the corresponding submodule directory for checking the detailed licenses.
