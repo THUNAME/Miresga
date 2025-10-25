@@ -1,0 +1,66 @@
+{
+    "table_name": "SwitchEgress.d_index_to_ip_port_table",
+    "key_names": [
+        {
+            "name": "eg_md.bridged.index",
+            "match_type": "exact"
+        }
+    ],
+    "actions": [
+        {
+            "action_name": "SwitchEgress.set_dst_ip_port",
+            "data_names": [
+                "dst_ip",
+                "dst_port"
+            ]
+        }
+    ],
+    "initial_entries": [
+        {
+            "keys": [
+                {
+                    "name": "eg_md.bridged.index",
+                    "value": 0,
+                    "match_type": "exact"
+                }
+            ],
+            "action_name": "SwitchEgress.set_dst_ip_port",
+            "datas": [
+                {
+                    "name": "dst_ip",
+                    "value": {
+                        "raw": "10.0.2.2",
+                        "type": "ipv4"
+                    }
+                },
+                {
+                    "name": "dst_port",
+                    "value": 80
+                }
+            ]
+        },
+        {
+            "keys": [
+                {
+                    "name": "eg_md.bridged.index",
+                    "value": 1,
+                    "match_type": "exact"
+                }
+            ],
+            "action_name": "SwitchEgress.set_dst_ip_port",
+            "datas": [
+                {
+                    "name": "dst_ip",
+                    "value": {
+                        "raw": "10.0.2.3",
+                        "type": "ipv4"
+                    }
+                },
+                {
+                    "name": "dst_port",
+                    "value": 80
+                }
+            ]
+        }
+    ]
+}

@@ -1,0 +1,37 @@
+[
+    {
+        "name": "9/0",
+        "speed": 100,
+        "fec_type": "rs"
+    },
+    {
+        "name": "11/0",
+        "speed": 100,
+        "fec_type": "rs"
+    },
+    {
+        "name": "12/0",
+        "speed": 100,
+        "fec_type": "rs"
+    },
+    {
+        "name": "13/0",
+        "speed": 100,
+        "fec_type": "rs"
+    },
+    {
+        "name": "14/0",
+        "speed": 100,
+        "fec_type": "rs"
+    },
+    {
+        "name": "15/0",
+        "speed": 100,
+        "fec_type": "rs"
+    },
+    {
+        "name": "16/0",
+        "speed": 100,
+        "fec_type": "rs"
+    }
+]

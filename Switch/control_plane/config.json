@@ -1,0 +1,182 @@
+{
+    "controller_ip": "10.0.1.254",
+    "controller_mac": "00:02:00:00:03:00",
+    "client_gateway": "10.0.0.1",
+    "client_gateway_mac": "00:02:00:00:03:00",
+    "client_servers_info": [
+        {
+            "ip": "10.0.0.2",
+            "mac": "0c:42:a1:d1:d0:c8",
+            "egress_port": 56
+        },
+        {
+            "ip": "10.0.0.3",
+            "mac": "0c:42:a1:98:aa:30",
+            "egress_port": 8
+        }
+    ],
+    "frontend_gateway": "10.0.1.1",
+    "frontend_gateway_mac": "00:02:00:00:03:00",
+    "frontend_servers_info": [
+        {
+            "client_ip": "10.0.1.2",
+            "client_mac": "82:84:2d:a4:e3:00",
+            "frontend_mac": "82:96:87:e6:d8:98",
+            "egress_port": 40
+        },
+        {
+            "client_ip": "10.0.1.3",
+            "client_mac": "d2:d2:09:e1:e9:8b",
+            "frontend_mac": "4e:52:f0:f3:b8:fe",
+            "egress_port": 32
+        }, 
+        {
+            "client_ip": "10.0.1.4",
+            "client_mac": "7e:1a:82:eb:a6:03",
+            "frontend_mac": "66:19:e4:77:89:0f",
+            "egress_port": 24
+        }
+    ],
+    "backend_gateway": "10.0.2.1",
+    "backend_gateway_mac": "00:02:00:00:03:00",
+    "backend_servers_info": [
+        {
+            "ip": "10.0.2.2",
+            "egress_port": 16,
+            "port": 80,
+            "mac": "b4:96:91:db:d6:78",
+            "rules": [
+                {
+                    "key": "Backend1/1KBFile",
+                    "offload_flag": 0
+                },
+                {
+                    "key": "Backend1/8KBFile",
+                    "offload_flag": 0
+                },
+                {
+                    "key": "Backend1/16KBFile",
+                    "offload_flag": 0
+                },
+                {
+                    "key": "Backend1/64KBFile",
+                    "offload_flag": 1
+                },
+                {
+                    "key": "Backend1/512KBFile",
+                    "offload_flag": 1
+                },
+                {
+                    "key": "Backend1/1MBFile",
+                    "offload_flag": 1
+                },
+                {
+                    "key": "Backend1/8MBFile",
+                    "offload_flag": 1
+                },
+                {
+                    "key": "Backend1/16MBFile",
+                    "offload_flag": 1
+                },
+                {
+                    "key": "Backend1/100MBFile",
+                    "offload_flag": 1
+                },
+                {
+                    "key": "Backend1/1GBFile",
+                    "offload_flag": 1
+                }
+            ]
+        },
+        {
+            "ip": "10.0.2.3",
+            "egress_port": 0,
+            "port": 80,
+            "mac": "b4:96:91:b1:d7:38",
+            "rules": [
+                {
+                    "key": "Backend2/1KBFile",
+                    "offload_flag": 0
+                },
+                {
+                    "key": "Backend2/8KBFile",
+                    "offload_flag": 0
+                },
+                {
+                    "key": "Backend2/16KBFile",
+                    "offload_flag": 0
+                },
+                {
+                    "key": "Backend2/64KBFile",
+                    "offload_flag": 1
+                },
+                {
+                    "key": "Backend2/512KBFile",
+                    "offload_flag": 1
+                },
+                {
+                    "key": "Backend2/1MBFile",
+                    "offload_flag": 1
+                },
+                {
+                    "key": "Backend2/8MBFile",
+                    "offload_flag": 1
+                },
+                {
+                    "key": "Backend2/16MBFile",
+                    "offload_flag": 1
+                },
+                {
+                    "key": "Backend2/100MBFile",
+                    "offload_flag": 1
+                },
+                {
+                    "key": "Backend2/1GBFile",
+                    "offload_flag": 1
+                }
+            ]
+        }
+    ],
+    "virtual_server_info": {
+        "ip": "10.0.1.10",
+        "mac": "00:02:00:00:03:00",
+        "port": 80
+    },
+    "ports": [
+        {
+            "name": "9/0",
+            "speed": 100,
+            "fec_type": "rs"
+        },
+        {
+            "name": "11/0",
+            "speed": 100,
+            "fec_type": "rs"
+        },
+        {
+            "name": "12/0",
+            "speed": 100,
+            "fec_type": "rs"
+        },
+        {
+            "name": "13/0",
+            "speed": 100,
+            "fec_type": "rs"
+        },
+        {
+            "name": "14/0",
+            "speed": 100,
+            "fec_type": "rs"
+        },
+        {
+            "name": "15/0",
+            "speed": 100,
+            "fec_type": "rs"
+        },
+        {
+            "name": "16/0",
+            "speed": 100,
+            "fec_type": "rs"
+        }
+    ]
+}

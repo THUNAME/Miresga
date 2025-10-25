@@ -217,7 +217,6 @@ struct header_t {
     arp_h arp;
     ipv4_h ipv4;
     tcp_h tcp;
-    //tcp_option_h tcp_option;
     udp_h udp;
     tcp_mss_h mss;
     tcp_nop_h nop_1;
@@ -231,8 +230,15 @@ struct header_t {
 struct ingress_metadata_t {
     ipv4_addr_t cip;
     port_t cport;
-    bit<8> hash_result;
+    bit<8> crc_hash_res;
+    bit<16> bloomfilter1_hash_res;
+    bit<16> bloomfilter2_hash_res;
     bit<3>  direction;
+    bit<1> new_tb_idx;
+    bit<1> updating_flag;
+    bit<1> in_bloomfilter_flag;
+    bit<1> new_flow_flag;
+    bit<1> use_0_flag;
 };
 
 @flexible

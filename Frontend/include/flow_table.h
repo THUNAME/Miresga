@@ -1,0 +1,33 @@
+#ifndef FLOW_TABLE_H_
+#define FLOW_TABLE_H_
+
+#include "fmt/format.h"
+#include "fmt/ranges.h"
+#include "spdlog/spdlog.h"
+#include "miresga_utils.h"
+#include "miresga_config.h"
+#include "spdlog/sinks/stdout_color_sinks.h"
+
+#include <vector>
+#include <arpa/inet.h>
+#include <boost/unordered/concurrent_flat_map.hpp>
+
+typedef boost::unordered::concurrent_flat_map<uint64_t, MiresgaFlowData_t*> FlowMap_t;
+
+class FlowTable 
+{
+private:
+    inline static FlowTable* _instance = nullptr;
+    FlowMap_t _flow_map[256];
+    FlowTable();
+    ~FlowTable();
+public:
+    static FlowTable* get_instance();
+    static void destroy_instance();
+    void insert_flow(MiresgaOFTKey_t& key, MiresgaFlowData_t* flow_data);
+    MiresgaFlowData_t* get_flow(MiresgaOFTKey_t& key);
+    void remove_flow(MiresgaOFTKey_t& key);
+    std::vector<MiresgaOFTEntry_t> get_crc_entries(uint8_t crc);
+};
+
+#endif

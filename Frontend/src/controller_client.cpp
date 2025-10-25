@@ -1,0 +1,393 @@
+#include "controller_client.h"
+
+static auto logger = spdlog::stdout_color_mt("controller_client");
+
+bool ControllerClient::_update_info() 
+{
+    size_t recv_size = 0;
+    if (_connector->recv_message(_recv_buffer, ETH_FRAME_LEN, recv_size) != MiresgaStatus_t::OK) {
+        if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            return true;
+        }
+        SPDLOG_LOGGER_ERROR(logger, "Failed to receive message from Tofino");
+        throw std::runtime_error("Failed to receive message");
+    }
+    if (recv_size == 0) {
+        SPDLOG_LOGGER_ERROR(logger, "Connection with Tofino has been closed");
+        throw std::runtime_error("Connection closed");
+    }
+    MiresgaOperationType_t op_type = static_cast<MiresgaOperationType_t>(_recv_buffer[0]);
+    switch(op_type) {
+        case MiresgaOperationType_t::INIT_RDMA_ENGINE: {
+            SPDLOG_LOGGER_DEBUG(logger, "Receive INIT_RDMA_ENGINE from Tofino");
+            uint8_t num_add = _recv_buffer[1];
+            SPDLOG_LOGGER_DEBUG(logger, "Number of new RDMA engines: {}", num_add);
+            size_t now_bytes = 2;
+            std::string msg;
+            msg.append(1, static_cast<char>(MiresgaOperationType_t::UPDATE_RDMA_INFO));
+            msg.append(1, static_cast<char>(num_add));
+            for (uint8_t i = 0; i < num_add; ++i) {
+                uint8_t remote_id = _recv_buffer[now_bytes];
+                now_bytes++;
+                msg.append(_rdma_manager->add_engine(remote_id));
+            }
+            _connector->send_message(msg.data(), msg.size());
+            SPDLOG_LOGGER_DEBUG(logger, "Sent RDMA infos to Tofino");
+            break;
+        }
+        case MiresgaOperationType_t::UPDATE_RDMA_INFO: {
+            SPDLOG_LOGGER_DEBUG(logger, "Receive UPDATE_RDMA_INFO from Tofino");
+            uint8_t num_update = _recv_buffer[1];
+            SPDLOG_LOGGER_DEBUG(logger, "Number of RDMA engines to update: {}", num_update);
+            size_t now_bytes = 2;
+            for (uint8_t i = 0; i < num_update; ++i) {
+                uint8_t remote_id = _recv_buffer[now_bytes];
+                now_bytes++;
+                RDMAInfo_t* remote_rdma_info = new RDMAInfo_t;
+                memcpy(remote_rdma_info, _recv_buffer + now_bytes, sizeof(RDMAInfo_t));
+                now_bytes += sizeof(RDMAInfo_t);
+                _rdma_manager->update_engine(remote_id, remote_rdma_info);
+            }
+            break;
+        }
+        case MiresgaOperationType_t::UPDATE_CRC: {
+            SPDLOG_LOGGER_DEBUG(logger, "Receive UPDATE_CRC from Tofino");
+            uint8_t num_update = _recv_buffer[1];
+            SPDLOG_LOGGER_DEBUG(logger, "Number of RDMA engines to update: {}", num_update);
+            size_t now_bytes = 2;
+            std::unordered_map<uint8_t, std::vector<uint8_t>> id_2_crcs;
+            for (uint8_t i = 0; i < num_update; ++i) {
+                uint8_t remote_id = _recv_buffer[now_bytes];
+                now_bytes++;
+                uint8_t num_crcs = _recv_buffer[now_bytes];
+                SPDLOG_LOGGER_DEBUG(logger, "Updating ID {} for {} CRCs", remote_id, num_crcs);
+                SPDLOG_LOGGER_DEBUG(logger, "CRCs: {}", fmt::join(std::vector<uint8_t>(_recv_buffer + now_bytes + 1, _recv_buffer + now_bytes + 1 + num_crcs), ","));
+                now_bytes++;
+                id_2_crcs[remote_id] = std::vector<uint8_t>(_recv_buffer + now_bytes, _recv_buffer + now_bytes + num_crcs);
+                now_bytes += num_crcs;
+            }
+            _rdma_manager->update_crcs(id_2_crcs);
+            std::string complete_msg = "";
+            complete_msg.append(1, static_cast<char>(MiresgaOperationType_t::COMPLETE));
+            _connector->send_message(complete_msg.data(), complete_msg.size());
+            break;
+        }
+        case MiresgaOperationType_t::SYNC_OLD_DATA: {
+            SPDLOG_LOGGER_DEBUG(logger, "Receive SYNC_OLD_DATA from Tofino");
+            uint8_t num_id = _recv_buffer[1];
+            size_t now_bytes = 2;
+            for (int i = 0; i < num_id; ++i) {
+                uint8_t remote_id = _recv_buffer[now_bytes];
+                SPDLOG_LOGGER_DEBUG(logger, "Syncing old flow data to RDMA engine {}", remote_id);
+                now_bytes++;
+                uint8_t num_crcs = _recv_buffer[now_bytes];
+                now_bytes++;
+                std::vector<uint8_t> crcs(reinterpret_cast<uint8_t*>(_recv_buffer + now_bytes), reinterpret_cast<uint8_t*>(_recv_buffer + now_bytes + num_crcs));
+                now_bytes += num_crcs;
+                for (auto& crc:crcs) {
+                    std::vector<MiresgaOFTEntry_t> data_vec = _flow_table->get_crc_entries(crc);
+                    _rdma_manager->add_old_flow_data(remote_id, data_vec);
+                }
+            }
+            break;
+        }
+        case MiresgaOperationType_t::RDMA_START: {
+            uint8_t num_start = _recv_buffer[1];
+            SPDLOG_LOGGER_INFO(logger, "Number of RDMA engines to start: {}", num_start);
+            SPDLOG_LOGGER_DEBUG(logger, "Starting RDMA engines ID: {}", fmt::join(std::vector<uint8_t>(_recv_buffer + 2, _recv_buffer + 2 + num_start), ","));
+            size_t now_bytes = 2;
+            for (uint8_t i = 0; i < num_start; ++i) {
+                uint8_t remote_id = _recv_buffer[now_bytes];
+                now_bytes++;
+                _rdma_manager->start_engine(remote_id);
+                uint8_t num_sync_crcs = _recv_buffer[now_bytes];
+                now_bytes++;
+                std::vector<uint8_t> crcs(reinterpret_cast<uint8_t*>(_recv_buffer + now_bytes), 
+                                          reinterpret_cast<uint8_t*>(_recv_buffer + now_bytes + num_sync_crcs));
+                SPDLOG_LOGGER_DEBUG(logger, "Syncing old {} CRCs to RDMA engine {}. CRCs: {}", num_sync_crcs, remote_id, fmt::join(crcs, ", "));
+                now_bytes += num_sync_crcs;
+                for (auto& crc:crcs) {
+                    std::vector<MiresgaOFTEntry_t> data_vec = _flow_table->get_crc_entries(crc);
+                    _rdma_manager->add_old_flow_data(remote_id, data_vec);
+                }
+            }
+            break;
+        }
+        case MiresgaOperationType_t::RDMA_STOP: {
+            uint8_t remote_id = _recv_buffer[1];
+            SPDLOG_LOGGER_WARN(logger, "RDMA engine {} reports error and will be removed", remote_id);
+            uint8_t num_update_id = _recv_buffer[2];
+            SPDLOG_LOGGER_DEBUG(logger, "Number of IDs to update: {}", num_update_id);
+            size_t now_bytes = 3;
+            std::unordered_map<uint8_t, std::vector<uint8_t>> id_2_crcs;
+            for (uint8_t i = 0; i < num_update_id; ++i) {
+                uint8_t update_id = _recv_buffer[now_bytes];
+                now_bytes++;
+                uint8_t num_crcs = _recv_buffer[now_bytes];
+                SPDLOG_LOGGER_DEBUG(logger, "Updating ID {} for {} CRCs", update_id, num_crcs);
+                SPDLOG_LOGGER_DEBUG(logger, "CRCs: {}", fmt::join(std::vector<uint8_t>(_recv_buffer + now_bytes + 1, _recv_buffer + now_bytes + 1 + num_crcs), ","));
+                now_bytes++;
+                id_2_crcs[update_id] = std::vector<uint8_t>(_recv_buffer + now_bytes, _recv_buffer + now_bytes + num_crcs);
+                now_bytes += num_crcs;
+                for (auto crc : id_2_crcs[update_id]) {
+                    std::vector<MiresgaOFTEntry_t> data_vec = _flow_table->get_crc_entries(crc);
+                    _rdma_manager->add_old_flow_data(update_id, data_vec);
+                }
+            }
+            _rdma_manager->remove_engine(remote_id, id_2_crcs);
+            break;
+        }
+        case MiresgaOperationType_t::UPDATE_RULE: {
+            SPDLOG_LOGGER_INFO(logger, "Receive UPDATE_RULE from Tofino");
+            uint8_t add_size = _recv_buffer[1];
+            SPDLOG_LOGGER_DEBUG(logger, "Number of rules to add: {}", add_size);
+            uint8_t del_size = _recv_buffer[2];
+            SPDLOG_LOGGER_DEBUG(logger, "Number of rules to delete: {}", del_size);
+            size_t offset = 3;
+            for (uint8_t i = 0; i < add_size; ++i) {
+                char* host_name = _recv_buffer + offset;
+                offset += strlen(host_name) + 1;
+                RuleEntry_t* rule = new RuleEntry_t;
+                rule->d_index = _recv_buffer[offset];
+                offset++;
+                rule->offload_flag = _recv_buffer[offset];
+                offset++;
+                _rule_manager->add_rule(host_name, rule);
+            }
+            for (uint8_t i = 0; i < del_size; ++i) {
+                char* host_name = _recv_buffer + offset;
+                offset += strlen(host_name) + 1;
+                _rule_manager->remove_rule(host_name);
+            }
+            break;
+        }
+        case MiresgaOperationType_t::UPDATE_D_INDEX: {
+            SPDLOG_LOGGER_INFO(logger, "Receive UPDATE_D_INDEX from Tofino");
+            uint8_t add_size = _recv_buffer[1];
+            SPDLOG_LOGGER_DEBUG(logger, "Number of backend server infos to add: {}", add_size);
+            uint8_t del_size = _recv_buffer[2];
+            SPDLOG_LOGGER_DEBUG(logger, "Number of backend server infos to delete: {}", del_size);
+            size_t offset = 3;
+            for (uint8_t i = 0; i < add_size; ++i)
+            {
+                uint8_t d_index = _recv_buffer[offset];
+                offset++;
+                ServerInfo_t* server_info = new ServerInfo_t;
+                memcpy(server_info, _recv_buffer + offset, sizeof(ServerInfo_t));
+                offset += sizeof(ServerInfo_t);
+                _rule_manager->add_backend_server_info(d_index, server_info);
+            }
+            for (uint8_t i = 0; i < del_size; ++i)
+            {
+                uint8_t d_index = _recv_buffer[offset];
+                offset++;
+                _rule_manager->remove_backend_server_info(d_index);
+            }
+            break;
+        }
+        case MiresgaOperationType_t::UPDATE_V_INFO: {
+            SPDLOG_LOGGER_INFO(logger, "Receive UPDATE_V_INFO from Tofino");
+            ServerInfo_t *server_info = reinterpret_cast<ServerInfo_t*>(_recv_buffer + 1);
+            _rule_manager->set_virtual_server_info(server_info);
+            break;
+        }
+        case MiresgaOperationType_t::COMPLETE: {
+            break;
+        }
+        default:
+            throw std::runtime_error("Unknown operation type");
+    }
+    std::string complete_msg = "";
+    complete_msg.append(1, static_cast<char>(MiresgaOperationType_t::COMPLETE));
+    _connector->send_message(complete_msg.data(), complete_msg.size());
+    return false;
+}
+
+void ControllerClient::_main_loop()
+{
+    SPDLOG_LOGGER_INFO(logger, "ControllerClient main loop started");
+    while (!_exit_flag) {
+        epoll_event events[10];
+        int nfds = epoll_wait(_epoll_fd, events, 10, -1);
+        for (int i = 0; i < nfds; ++i) {
+            if (events[i].data.fd == _connector->socket) {
+                while(!_update_info()) {
+                    SPDLOG_LOGGER_DEBUG(logger, "Processed one message from Tofino");
+                }
+            }
+            else if(events[i].data.fd == _offload_timerfd) {
+                // Since too many logs will be generated, comment it out here.
+                // SPDLOG_LOGGER_DEBUG(logger, "Offload timer triggered");
+                uint64_t expirations;
+                ssize_t recv_size = read(_offload_timerfd, &expirations, sizeof(expirations));
+                if (recv_size == -1) {
+                    throw std::runtime_error("Failed to read offload timerfd");
+                }
+                std::string offload_msg = _entry_manager->serialize_msg();
+                size_t send_size = offload_msg.size();
+                if (send_size > 0) {
+                    if (_connector->send_message(offload_msg.data(), send_size) != MiresgaStatus_t::OK) {
+                        throw std::runtime_error("Failed to send offload message");
+                    }
+                }
+            }
+            else if((events[i].data.u32 & 0xFFFFFF00) == TIMER_MASK) {
+                // Since too many logs will be generated, comment it out here.
+                // SPDLOG_LOGGER_DEBUG(logger, "Sync timer triggered");
+                uint8_t id = events[i].data.u32 & 0xFF;
+                _rdma_manager->sync_states(id);
+            }
+        }
+    }
+    SPDLOG_LOGGER_WARN(logger, "ControllerClient main loop exited");
+}
+
+void
+ControllerClient::_poll_cq() {
+    while (!_exit_flag) {
+        ibv_wc* wc = _rdma_manager->poll_cq();
+        if (wc != nullptr) {
+            uint8_t id = static_cast<uint8_t>(wc->wr_id);
+            if (wc->status != IBV_WC_SUCCESS) {
+                SPDLOG_LOGGER_ERROR(logger, "Completion with error. WC status: {}, RDMA Engine ID: {}", ibv_wc_status_str(wc->status), id);
+                char err_msg[2];
+                err_msg[0] = static_cast<char>(MiresgaOperationType_t::RDMA_STOP);
+                err_msg[1] = static_cast<char>(id);
+                if (_connector->send_message(err_msg, 2) != MiresgaStatus_t::OK) {
+                    SPDLOG_LOGGER_ERROR(logger, "Failed to send RDMA_STOP message to Tofino");
+                }
+            } else if(wc->opcode == IBV_WC_RECV_RDMA_WITH_IMM){
+                uint32_t imm_data = wc->imm_data;
+                SPDLOG_LOGGER_DEBUG(logger, "Received RDMA with IMM. RDMA Engine ID: {}, IMM data: {}", id, imm_data);
+                void* recv_addr = _rdma_manager->get_recv_addr(id);
+                std::vector<Operation_t> operations(reinterpret_cast<Operation_t*>(recv_addr), 
+                                                    reinterpret_cast<Operation_t*>(recv_addr) + imm_data);
+                for (auto& op : operations) {
+                    if (op.type == OperationType_t::INSERT) {
+                        MiresgaFlowData_t* flow_data = new MiresgaFlowData_t;
+                        flow_data->entry_data = op.entry;
+                        flow_data->state = static_cast<FlowState_t>(op.entry.data.flow_state);
+                        _flow_table->insert_flow(flow_data->entry_data.key, flow_data);
+                    } else if (op.type == OperationType_t::DELETE) {
+                        _flow_table->remove_flow(op.entry.key);
+                    } else {
+                        SPDLOG_LOGGER_ERROR(logger, "Unknown operation type in RDMA message. RDMA Engine ID: {}", id);
+                    }
+                }
+                _rdma_manager->sub_remain_recv_wr(id);
+            } else if (wc->opcode == IBV_WC_RDMA_WRITE) {
+                SPDLOG_LOGGER_DEBUG(logger, "RDMA write completed. RDMA Engine ID: {}", id);
+                _rdma_manager->sync_complete(id);
+            } else {
+                SPDLOG_LOGGER_ERROR(logger, "Unknown WC opcode: {}. RDMA Engine ID: {}", static_cast<int>(wc->opcode), id);
+            }
+            delete wc;
+        }
+    }
+}
+
+ControllerClient::ControllerClient(char* switch_ip, uint16_t switch_port, 
+                                   char* rdma_dev_name)
+{
+    SPDLOG_LOGGER_INFO(logger, "Initializing ControllerClient");
+    _epoll_fd = epoll_create1(0);
+    _exit_flag = false;
+    if (_epoll_fd == -1) {
+        throw std::runtime_error("Failed to create epoll file descriptor");
+    }
+    SPDLOG_LOGGER_DEBUG(logger, "epoll started");
+    try {
+        _connector = new ControllerConnector(switch_ip, switch_port);
+        SPDLOG_LOGGER_DEBUG(logger, "Client Connector started");
+        _entry_manager = EntryManager::get_instance();
+        SPDLOG_LOGGER_DEBUG(logger, "Entry Manager started");
+        _rule_manager = RuleManager::get_instance();
+        SPDLOG_LOGGER_DEBUG(logger, "Rule Manager started");
+    }
+    catch (const std::exception& e) {
+        throw std::runtime_error("Failed to initialize ControllerClient: " + std::string(e.what()));
+    }
+
+    epoll_event sock_ev;
+    sock_ev.events = EPOLLIN;
+    sock_ev.data.fd = _connector->socket;
+    if (epoll_ctl(_epoll_fd, EPOLL_CTL_ADD, _connector->socket, &sock_ev) == -1) {
+        throw std::runtime_error("Failed to add socket to epoll");
+    }
+    SPDLOG_LOGGER_DEBUG(logger, "Socket added to epoll");
+    _flow_table = FlowTable::get_instance();
+    SPDLOG_LOGGER_DEBUG(logger, "Flow Table created");
+    RDMAManager::init_rdma_manager(rdma_dev_name, _epoll_fd);
+    SPDLOG_LOGGER_DEBUG(logger, "RDMA Manager started");
+    _rdma_manager = RDMAManager::get_instance();
+    _offload_timerfd = timerfd_create(CLOCK_MONOTONIC, 0);
+    if (_offload_timerfd == -1) {
+        throw std::runtime_error("Failed to create offload timerfd");
+    }
+
+    struct itimerspec offload_timer_value;
+    offload_timer_value.it_value.tv_sec = 0;
+    offload_timer_value.it_value.tv_nsec = 10000000;  // 0.01 seconds in nanoseconds
+    offload_timer_value.it_interval.tv_sec = 0;
+    offload_timer_value.it_interval.tv_nsec = 10000000;  // 0.01 seconds in nanoseconds
+
+    if (timerfd_settime(_offload_timerfd, 0, &offload_timer_value, NULL) == -1) {
+        throw std::runtime_error("Failed to set offload timer");
+    }
+
+    epoll_event offload_ev;
+    offload_ev.events = EPOLLIN;
+    offload_ev.data.fd = _offload_timerfd;
+    if (epoll_ctl(_epoll_fd, EPOLL_CTL_ADD, _offload_timerfd, &offload_ev) == -1) {
+        throw std::runtime_error("Failed to add offload timerfd to epoll");
+    }
+
+    SPDLOG_LOGGER_DEBUG(logger, "Timer added to epoll");
+    _client_thread = std::thread(&ControllerClient::_main_loop, this);
+    _client_thread.detach();
+    _poll_thread = std::thread(&ControllerClient::_poll_cq, this);
+    _poll_thread.detach();
+}
+
+ControllerClient::~ControllerClient()
+{
+    stop();
+}
+
+void ControllerClient::init_controller_client(char* switch_ip, uint16_t switch_port, 
+                                              char* rdma_dev_name)
+{
+    if (_instance == nullptr) {
+        _instance = new ControllerClient(switch_ip, switch_port, rdma_dev_name);
+    }
+}
+
+ControllerClient* ControllerClient::get_instance()
+{
+    if (_instance == nullptr) {
+        throw std::runtime_error("ControllerClient is not initialized");
+    }
+    return _instance;
+}
+
+void ControllerClient::destroy_instance()
+{
+    if (_instance != nullptr) {
+        delete _instance;
+        _instance = nullptr;
+    }
+}
+
+void ControllerClient::stop()
+{
+    _exit_flag = true;
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    if (_epoll_fd != -1) {
+        close(_epoll_fd);
+        _epoll_fd = -1;
+    }
+    if (_connector != nullptr) {
+        delete _connector;
+        _connector = nullptr;
+    }
+}

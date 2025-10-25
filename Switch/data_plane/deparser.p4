@@ -90,7 +90,7 @@ control SwitchEgressDeparser(packet_out pkt,
                 }
             );
         }
-        else{
+        else if(hdr.tcp.isValid()){
             hdr.tcp.checksum = tcp_checksum.update(
                 {
                     hdr.ipv4.src_addr,
@@ -105,6 +105,8 @@ control SwitchEgressDeparser(packet_out pkt,
         
         pkt.emit(hdr.ethernet);
         pkt.emit(hdr.ipv4);
+        pkt.emit(hdr.arp);
+        pkt.emit(hdr.udp);
         pkt.emit(hdr.tcp);
         pkt.emit(hdr.mss);
         pkt.emit(hdr.nop_1);
