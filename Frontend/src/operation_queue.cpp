@@ -31,8 +31,9 @@ OperationQueue::add_operation(
     }
     SPDLOG_LOGGER_DEBUG(logger, "Trying to add operation: type={}, idx = {}", static_cast<int>(operation.type), idx);
     if (idx >= _max_queue_size) {
-        SPDLOG_LOGGER_WARN(logger, "Operation queue is full, add to another queue");
+        SPDLOG_LOGGER_WARN(logger, "Operation queue is full");
         _operation_count.fetch_sub(1, std::memory_order_relaxed);
+        return;
     }
     _operation_queue[idx] = operation;
     SPDLOG_LOGGER_DEBUG(logger, "Added operation: type={}, idx = {}", static_cast<int>(operation.type), idx);
